@@ -2,9 +2,7 @@ services:
   rethinkdb:
     image: rethinkdb:2.4
     container_name: stf-rethinkdb
-    ports:
-      - "8080:8080"
-      - "28015:28015"
+    network_mode: host
     volumes:
       - rethinkdb-data:/data
     restart: unless-stopped
@@ -14,17 +12,17 @@ services:
     container_name: stf
     depends_on:
       - rethinkdb
-    ports:
-      - "${STF_PORT}:7100"
-      - "${STF_WS_PORT}:7110"
-      - "7400-7500:7400-7500"
+    network_mode: host
+    privileged: true
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb
     environment:
-      - RETHINKDB_PORT_28015_TCP=tcp://rethinkdb:28015
+      - RETHINKDB_PORT_28015_TCP=tcp://127.0.0.1:28015
     command: >
       stf local
       --public-ip ${PUBLIC_IP}
-      --adb-host ${ADB_HOST}
-      --adb-port ${ADB_PORT}
+      --adb-host 127.0.0.1
+      --adb-port 5037
       --allow-remote
     restart: unless-stopped
 
