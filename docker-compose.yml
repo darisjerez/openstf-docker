@@ -24,9 +24,6 @@ services:
       --adb-host 127.0.0.1
       --adb-port 5037
       --allow-remote
-      --screen-capture-method=scrcpy
-      --screen-capture-max-size=720
-      --screen-capture-fps=30
     restart: unless-stopped
 
 volumes:
