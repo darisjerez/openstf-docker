@@ -26,5 +26,35 @@ services:
       --allow-remote
     restart: unless-stopped
 
+  stf-exporter:
+    image: node:18
+    container_name: stf-exporter
+    working_dir: /app
+    volumes:
+      - ./exporter:/app
+    command: node stf-exporter.js
+    depends_on:
+      - rethinkdb
+    ports:
+      - "9105:9105"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
 volumes:
   rethinkdb-data:
+  exporter:
