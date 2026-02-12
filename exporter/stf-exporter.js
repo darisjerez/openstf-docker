@@ -10,7 +10,14 @@ let metrics = {
 
 async function collect() {
   const conn = await r.connect({ host: '127.0.0.1', port: 28015, db: 'stf'});
-  const devices = await r.table('devices').run(conn);
+  const devices = await r.table('devices').run(conn).then(cursor => cursor.toArray())
+  devices.forEach(device => {
+    const isOnline = device.present && device.status === 'device'
+      ? 1
+      : 0
+
+    metrics += `stf_device_online{serial="${device.serial}",model="${device.model}"} ${isOnline}\n`
+  })
   const list = await devices.toArray();
 
   metrics.total = list.length;
