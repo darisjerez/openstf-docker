@@ -9,7 +9,7 @@ let metrics = {
 };
 
 async function collect() {
-  const conn = await r.connect({ host: 'rethinkdb', port: 28015 });
+  const conn = await r.connect({ host: '127.0.0.1', port: 28015 });
   const devices = await r.table('devices').run(conn);
   const list = await devices.toArray();
 

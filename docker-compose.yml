@@ -32,9 +32,10 @@ services:
     working_dir: /app
     volumes:
       - ./exporter:/app
-    command: node stf-exporter.js
+    command: sh -c "npm install && node stf-exporter.js"
     depends_on:
       - rethinkdb
+    network_mode: host
     ports:
       - "9105:9105"
     restart: unless-stopped
@@ -57,4 +58,3 @@ services:
 
 volumes:
   rethinkdb-data:
-  exporter:
