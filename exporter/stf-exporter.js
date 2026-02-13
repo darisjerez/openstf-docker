@@ -18,11 +18,8 @@ async function collectMetrics() {
 
     const total = devices.length
 
-    // Online definition aligned with STF
-    const onlineDevices = devices.filter(
-      d => d.status === 'device'
-    )
-
+    // YOUR working logic
+    const onlineDevices = devices.filter(d => d.present === true)
     const online = onlineDevices.length
     const offline = total - online
 
@@ -41,12 +38,12 @@ async function collectMetrics() {
     output += `# TYPE stf_devices_offline gauge\n`
     output += `stf_devices_offline ${offline}\n`
 
-    // Per-device status metric
+    // Per-device metric
     output += `# HELP stf_device_online Device online status (1 = online, 0 = offline)\n`
     output += `# TYPE stf_device_online gauge\n`
 
     devices.forEach(device => {
-      const isOnline = device.status === 'device' ? 1 : 0
+      const isOnline = device.present === true ? 1 : 0
 
       const serial = device.serial || 'unknown'
       const model = (device.model || 'unknown').replace(/"/g, '')
