@@ -8,7 +8,7 @@ async function collectMetrics() {
 
   try {
     conn = await r.connect({
-      host: '127.0.0.1', // change if not using host mode
+      host: '127.0.0.1',
       port: 28015,
       db: 'stf'
     })
@@ -17,9 +17,13 @@ async function collectMetrics() {
     const devices = await cursor.toArray()
 
     const total = devices.length
-    const online = devices.filter(
-      d => d.present && d.status === 'device'
-    ).length
+
+    // Online definition aligned with STF
+    const onlineDevices = devices.filter(
+      d => d.status === 'device'
+    )
+
+    const online = onlineDevices.length
     const offline = total - online
 
     let output = ''
@@ -37,13 +41,12 @@ async function collectMetrics() {
     output += `# TYPE stf_devices_offline gauge\n`
     output += `stf_devices_offline ${offline}\n`
 
-    // Per-device metrics
+    // Per-device status metric
     output += `# HELP stf_device_online Device online status (1 = online, 0 = offline)\n`
     output += `# TYPE stf_device_online gauge\n`
 
     devices.forEach(device => {
-      const isOnline =
-        device.present && device.status === 'device' ? 1 : 0
+      const isOnline = device.status === 'device' ? 1 : 0
 
       const serial = device.serial || 'unknown'
       const model = (device.model || 'unknown').replace(/"/g, '')
