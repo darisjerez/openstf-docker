@@ -9,6 +9,18 @@
       font-family: sans-serif;
     }
 
+    .header {
+      padding: 8px 12px;
+      background: #1a1a1a;
+      color: #888;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header .count { color: #0f0; }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -40,63 +52,257 @@
       padding: 2px 6px;
       border-radius: 4px;
     }
+
+    .status {
+      position: absolute;
+      top: 4px;
+      right: 6px;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(0,0,0,0.6);
+    }
+
+    .status.connecting { color: #ff0; }
+    .status.live { color: #0f0; }
+    .status.error { color: #f00; }
+
+    .setup {
+      color: #ccc;
+      max-width: 500px;
+      margin: 80px auto;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    .setup code {
+      background: #222;
+      padding: 2px 6px;
+      border-radius: 3px;
+      color: #0f0;
+    }
   </style>
 </head>
 <body>
 
+<!--
+  SETUP: Generate an STF access token:
+  1. Log into STF web UI (http://SERVER_IP:7100)
+  2. Go to Settings > Keys > Add a new key
+  3. Copy the token and paste it below
+
+  NOTE: Devices claimed by the wall will show as "in use" in STF.
+  Use a dedicated user (e.g. wall@farm) to avoid conflicts.
+-->
+
+<div class="header">
+  <span>Device Wall</span>
+  <span id="status-bar">loading...</span>
+</div>
+
 <div class="grid" id="grid"></div>
 
+<div class="setup" id="setup" style="display:none">
+  <p>Paste your STF access token below to enable the device wall.</p>
+  <p>Generate one at <code>STF Settings &gt; Keys</code></p>
+  <p><input id="token-input" type="text" placeholder="STF access token" style="width:100%;padding:8px;font-size:14px;background:#222;color:#fff;border:1px solid #444;border-radius:4px"></p>
+  <p><button onclick="saveToken()" style="padding:8px 24px;font-size:14px;cursor:pointer">Save &amp; Connect</button></p>
+</div>
+
 <script>
-const STF_URL = "http://100.118.30.78:7100"
-const WS_URL = "ws://100.118.30.78:7110"
+const TOKEN_KEY = "stf_wall_token"
 
-async function loadDevices() {
-  const res = await fetch("/api/v1/devices", { credentials: "include" })
-  const data = await res.json()
-
-  const devices = data.devices.filter(d => d.present)
-
-  devices.forEach(device => {
-    createViewer(device.serial, device.model)
-  })
+function getToken() {
+  return localStorage.getItem(TOKEN_KEY) || ""
 }
 
-function createViewer(serial, model) {
-  const container = document.createElement("div")
-  container.className = "device"
-
-  const canvas = document.createElement("canvas")
-  const ctx = canvas.getContext("2d")
-
-  const label = document.createElement("div")
-  label.className = "label"
-  label.innerText = model
-
-  container.appendChild(canvas)
-  container.appendChild(label)
-  document.getElementById("grid").appendChild(container)
-
-  const ws = new WebSocket(
-  `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/socket.io/?action=stream&serial=${serial}`
-)
-
-  ws.binaryType = "arraybuffer"
-
-  ws.onmessage = event => {
-    const blob = new Blob([event.data], { type: "image/jpeg" })
-    const img = new Image()
-
-    img.onload = () => {
-      canvas.width = img.width
-      canvas.height = img.height
-      ctx.drawImage(img, 0, 0)
-    }
-
-    img.src = URL.createObjectURL(blob)
+function saveToken() {
+  const val = document.getElementById("token-input").value.trim()
+  if (val) {
+    localStorage.setItem(TOKEN_KEY, val)
+    location.reload()
   }
 }
 
-loadDevices()
+async function api(method, path, body) {
+  const headers = { "Content-Type": "application/json" }
+  const token = getToken()
+  if (token) headers["Authorization"] = "Bearer " + token
+  const opts = { method, headers }
+  if (body) opts.body = JSON.stringify(body)
+  const res = await fetch(path, opts)
+  return res.json()
+}
+
+function setStatus(text) {
+  document.getElementById("status-bar").innerHTML = text
+}
+
+function createDeviceEl(serial, model) {
+  const container = document.createElement("div")
+  container.className = "device"
+  container.id = "dev-" + serial
+
+  const canvas = document.createElement("canvas")
+  canvas.width = 270
+  canvas.height = 480
+
+  const label = document.createElement("div")
+  label.className = "label"
+  label.innerText = model || serial
+
+  const status = document.createElement("div")
+  status.className = "status connecting"
+  status.innerText = "connecting..."
+
+  container.appendChild(canvas)
+  container.appendChild(label)
+  container.appendChild(status)
+  document.getElementById("grid").appendChild(container)
+
+  return { canvas, status }
+}
+
+async function claimDevice(serial) {
+  await api("POST", "/api/v1/user/devices/" + serial, {
+    serial: serial,
+    timeout: 900000
+  })
+
+  // Poll for display URL (STF needs a moment to start minicap)
+  for (let i = 0; i < 15; i++) {
+    await new Promise(r => setTimeout(r, 1000))
+    const data = await api("GET", "/api/v1/user/devices/" + serial)
+    const dev = data.device
+    if (dev && dev.display && dev.display.url) {
+      return dev.display.url
+    }
+  }
+  return null
+}
+
+function connectStream(wsUrl, el) {
+  const ws = new WebSocket(wsUrl)
+  ws.binaryType = "arraybuffer"
+
+  const ctx = el.canvas.getContext("2d")
+  let gotBanner = false
+
+  ws.onmessage = event => {
+    // First message is a 24-byte minicap banner — skip it
+    if (!gotBanner) {
+      gotBanner = true
+      if (event.data.byteLength === 24) return
+    }
+
+    const blob = new Blob([event.data], { type: "image/jpeg" })
+    const url = URL.createObjectURL(blob)
+    const img = new Image()
+
+    img.onload = () => {
+      el.canvas.width = img.width
+      el.canvas.height = img.height
+      ctx.drawImage(img, 0, 0)
+      URL.revokeObjectURL(url)
+      el.status.className = "status live"
+      el.status.innerText = "live"
+    }
+
+    img.onerror = () => URL.revokeObjectURL(url)
+    img.src = url
+  }
+
+  ws.onerror = () => {
+    el.status.className = "status error"
+    el.status.innerText = "stream error"
+  }
+
+  ws.onclose = () => {
+    el.status.className = "status error"
+    el.status.innerText = "reconnecting..."
+    setTimeout(() => connectStream(wsUrl, el), 5000)
+  }
+}
+
+async function startDevice(serial, model) {
+  const el = createDeviceEl(serial, model)
+
+  try {
+    const displayUrl = await claimDevice(serial)
+    if (!displayUrl) {
+      el.status.className = "status error"
+      el.status.innerText = "no stream"
+      console.warn(serial, "- no display URL after claiming")
+      return
+    }
+    console.log(serial, "stream at", displayUrl)
+    connectStream(displayUrl, el)
+  } catch (err) {
+    console.error(serial, "claim failed:", err)
+    el.status.className = "status error"
+    el.status.innerText = "claim failed"
+  }
+}
+
+async function init() {
+  const token = getToken()
+  if (!token) {
+    document.getElementById("setup").style.display = "block"
+    setStatus("no token configured")
+    return
+  }
+
+  setStatus("fetching devices...")
+
+  let data
+  try {
+    data = await api("GET", "/api/v1/devices")
+  } catch (err) {
+    setStatus('<span style="color:#f00">API error — check token</span>')
+    return
+  }
+
+  if (!data.devices) {
+    setStatus('<span style="color:#f00">invalid response — check token</span>')
+    return
+  }
+
+  const devices = data.devices.filter(d => d.present)
+  setStatus(`<span class="count">${devices.length}</span> devices found — claiming...`)
+
+  // Claim devices sequentially to avoid overwhelming STF
+  let streaming = 0
+  for (const device of devices) {
+    await startDevice(device.serial, device.model)
+    const el = document.querySelector("#dev-" + CSS.escape(device.serial) + " .status")
+    if (el && el.classList.contains("live")) streaming++
+  }
+
+  setStatus(`<span class="count">${devices.length}</span> devices — streaming`)
+}
+
+// Release devices when leaving the page
+window.addEventListener("beforeunload", () => {
+  const token = getToken()
+  if (!token) return
+  // Fire-and-forget release calls
+  navigator.sendBeacon && api("GET", "/api/v1/user/devices").then(data => {
+    if (data.devices) {
+      data.devices.forEach(d => {
+        fetch("/api/v1/user/devices/" + d.serial, {
+          method: "DELETE",
+          headers: {
+            "Authorization": "Bearer " + token,
+            "Content-Type": "application/json"
+          },
+          keepalive: true
+        })
+      })
+    }
+  })
+})
+
+init()
 </script>
 
 </body>
