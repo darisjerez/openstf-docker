@@ -66,6 +66,28 @@
     .status.connecting { color: #ff0; }
     .status.live { color: #0f0; }
     .status.error { color: #f00; }
+    .status.paused { color: #888; }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      padding: 4px;
+      background: #1a1a1a;
+    }
+
+    .controls button {
+      background: #333;
+      color: #ccc;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 14px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .controls button:hover {
+      background: #444;
+    }
 
     .setup {
       color: #ccc;
@@ -155,12 +177,19 @@ function createDeviceEl(serial, model) {
   status.className = "status connecting"
   status.innerText = "connecting..."
 
+  const controls = document.createElement("div")
+  controls.className = "controls"
+  const btn = document.createElement("button")
+  btn.innerText = "Stop"
+  controls.appendChild(btn)
+
   container.appendChild(canvas)
   container.appendChild(label)
   container.appendChild(status)
+  container.appendChild(controls)
   document.getElementById("grid").appendChild(container)
 
-  return { canvas, status }
+  return { canvas, status, btn }
 }
 
 async function claimDevice(serial) {
@@ -201,81 +230,81 @@ async function claimDevice(serial) {
 }
 
 function connectStream(wsUrl, el) {
-  // Proxy through nginx: ws://host:7404 -> ws://host/screen/7404
   const parsed = new URL(wsUrl)
   const proxiedUrl = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/screen/${parsed.port}`
-  console.log("proxied:", wsUrl, "->", proxiedUrl)
 
-  const ws = new WebSocket(proxiedUrl)
-  ws.binaryType = "arraybuffer"
+  let ws = null
+  let stopped = false
 
-  const ctx = el.canvas.getContext("2d")
-  let gotBanner = false
+  function start() {
+    ws = new WebSocket(proxiedUrl)
+    ws.binaryType = "arraybuffer"
 
-  ws.onopen = () => {
-    console.log("WS OPEN:", proxiedUrl)
-    // Tell STF to start streaming frames
-    ws.send("size 480x800")
-    ws.send("on")
-    el.status.className = "status connecting"
-    el.status.innerText = "connected"
-  }
+    const ctx = el.canvas.getContext("2d")
+    let gotBanner = false
 
-  ws.onmessage = event => {
-    // Handle text messages (ping/pong, protocol messages)
-    if (typeof event.data === "string") {
-      console.log("WS TEXT:", proxiedUrl, JSON.stringify(event.data))
-      if (event.data === "ping") {
-        ws.send("pong")
-      }
-      return
-    }
-
-    // Binary message
-    console.log("WS BIN:", proxiedUrl, "size:", event.data.byteLength)
-
-    // First binary message is a 24-byte minicap banner — skip it
-    if (!gotBanner) {
-      gotBanner = true
-      if (event.data.byteLength === 24) {
-        const view = new DataView(event.data)
-        console.log("Banner: version=" + view.getUint8(0),
-          "size=" + view.getUint8(1),
-          "width=" + view.getUint32(2, true),
-          "height=" + view.getUint32(6, true))
-        return
-      }
-    }
-
-    const blob = new Blob([event.data], { type: "image/jpeg" })
-    const url = URL.createObjectURL(blob)
-    const img = new Image()
-
-    img.onload = () => {
-      el.canvas.width = img.width
-      el.canvas.height = img.height
-      ctx.drawImage(img, 0, 0)
-      URL.revokeObjectURL(url)
+    ws.onopen = () => {
+      ws.send("size 480x800")
+      ws.send("on")
       el.status.className = "status live"
       el.status.innerText = "live"
     }
 
-    img.onerror = () => URL.revokeObjectURL(url)
-    img.src = url
+    ws.onmessage = event => {
+      if (typeof event.data === "string") {
+        if (event.data === "ping") ws.send("pong")
+        return
+      }
+
+      if (!gotBanner) {
+        gotBanner = true
+        if (event.data.byteLength === 24) return
+      }
+
+      const blob = new Blob([event.data], { type: "image/jpeg" })
+      const url = URL.createObjectURL(blob)
+      const img = new Image()
+
+      img.onload = () => {
+        el.canvas.width = img.width
+        el.canvas.height = img.height
+        ctx.drawImage(img, 0, 0)
+        URL.revokeObjectURL(url)
+      }
+
+      img.onerror = () => URL.revokeObjectURL(url)
+      img.src = url
+    }
+
+    ws.onerror = () => {
+      el.status.className = "status error"
+      el.status.innerText = "stream error"
+    }
+
+    ws.onclose = () => {
+      if (!stopped) {
+        el.status.className = "status error"
+        el.status.innerText = "reconnecting..."
+        setTimeout(start, 5000)
+      }
+    }
   }
 
-  ws.onerror = (e) => {
-    console.error("WS ERROR:", proxiedUrl, e)
-    el.status.className = "status error"
-    el.status.innerText = "stream error"
+  el.btn.onclick = () => {
+    if (stopped) {
+      stopped = false
+      el.btn.innerText = "Stop"
+      start()
+    } else {
+      stopped = true
+      el.btn.innerText = "Resume"
+      el.status.className = "status paused"
+      el.status.innerText = "paused"
+      if (ws) ws.close()
+    }
   }
 
-  ws.onclose = (e) => {
-    console.warn("WS CLOSE:", proxiedUrl, "code:", e.code, "reason:", e.reason)
-    el.status.className = "status error"
-    el.status.innerText = "reconnecting..."
-    setTimeout(() => connectStream(wsUrl, el), 5000)
-  }
+  start()
 }
 
 async function startDevice(serial, model) {
