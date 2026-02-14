@@ -164,29 +164,37 @@ function createDeviceEl(serial, model) {
 }
 
 async function claimDevice(serial) {
-  const claimRes = await fetch("/api/v1/user/devices/" + serial, {
+  const token = getToken()
+
+  // Try to claim — 403 is OK if device is already in our group
+  await fetch("/api/v1/user/devices/" + serial, {
     method: "POST",
     headers: {
-      "Authorization": "Bearer " + getToken(),
+      "Authorization": "Bearer " + token,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({ serial: serial, timeout: 900000 })
   })
 
-  if (claimRes.status === 403) {
-    throw new Error("in use by another user")
-  }
-  if (!claimRes.ok) {
-    throw new Error("claim returned " + claimRes.status)
-  }
-
   // Poll for display URL (STF needs a moment to start minicap)
   for (let i = 0; i < 15; i++) {
     await new Promise(r => setTimeout(r, 1000))
-    const data = await api("GET", "/api/v1/user/devices/" + serial)
-    const dev = data.device
-    if (dev && dev.display && dev.display.url) {
-      return dev.display.url
+
+    const res = await fetch("/api/v1/user/devices/" + serial, {
+      headers: { "Authorization": "Bearer " + token }
+    })
+
+    // 403 on GET means a different user owns this device
+    if (res.status === 403) {
+      throw new Error("in use by another user")
+    }
+
+    if (res.ok) {
+      const data = await res.json()
+      const dev = data.device
+      if (dev && dev.display && dev.display.url) {
+        return dev.display.url
+      }
     }
   }
   return null
