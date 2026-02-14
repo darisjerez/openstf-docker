@@ -76,7 +76,9 @@ function createViewer(serial, model) {
   container.appendChild(label)
   document.getElementById("grid").appendChild(container)
 
-  const ws = new WebSocket(`${location.host}/socket.io/?action=stream&serial=${serial}`)
+  const ws = new WebSocket(
+  `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/socket.io/?action=stream&serial=${serial}`
+)
 
   ws.binaryType = "arraybuffer"
 
