@@ -164,10 +164,21 @@ function createDeviceEl(serial, model) {
 }
 
 async function claimDevice(serial) {
-  await api("POST", "/api/v1/user/devices/" + serial, {
-    serial: serial,
-    timeout: 900000
+  const claimRes = await fetch("/api/v1/user/devices/" + serial, {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + getToken(),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ serial: serial, timeout: 900000 })
   })
+
+  if (claimRes.status === 403) {
+    throw new Error("in use by another user")
+  }
+  if (!claimRes.ok) {
+    throw new Error("claim returned " + claimRes.status)
+  }
 
   // Poll for display URL (STF needs a moment to start minicap)
   for (let i = 0; i < 15; i++) {
@@ -182,11 +193,21 @@ async function claimDevice(serial) {
 }
 
 function connectStream(wsUrl, el) {
-  const ws = new WebSocket(wsUrl)
+  // Proxy through nginx: ws://host:7404 -> ws://host/screen/7404
+  const parsed = new URL(wsUrl)
+  const proxiedUrl = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/screen/${parsed.port}`
+  console.log("proxied:", wsUrl, "->", proxiedUrl)
+
+  const ws = new WebSocket(proxiedUrl)
   ws.binaryType = "arraybuffer"
 
   const ctx = el.canvas.getContext("2d")
   let gotBanner = false
+
+  ws.onopen = () => {
+    el.status.className = "status connecting"
+    el.status.innerText = "connected"
+  }
 
   ws.onmessage = event => {
     // First message is a 24-byte minicap banner — skip it
@@ -240,7 +261,7 @@ async function startDevice(serial, model) {
   } catch (err) {
     console.error(serial, "claim failed:", err)
     el.status.className = "status error"
-    el.status.innerText = "claim failed"
+    el.status.innerText = err.message === "in use by another user" ? "in use" : "claim failed"
   }
 }
 
