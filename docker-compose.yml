@@ -32,6 +32,16 @@ services:
       --mute-master always 
     restart: unless-stopped
 
+  nginx:
+    image: nginx:latest
+    container_name: stf-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./grid/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./grid/grid.html:/usr/share/nginx/html/wall/index.html:ro
+    restart: unless-stopped
+
   stf-exporter:
     image: node:18
     container_name: stf-exporter
