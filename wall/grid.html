@@ -213,15 +213,17 @@ function connectStream(wsUrl, el) {
   let gotBanner = false
 
   ws.onopen = () => {
+    console.log("WS OPEN:", proxiedUrl)
     el.status.className = "status connecting"
     el.status.innerText = "connected"
   }
 
   ws.onmessage = event => {
+    console.log("WS MSG:", proxiedUrl, "size:", event.data.byteLength || event.data.length, "type:", typeof event.data)
     // First message is a 24-byte minicap banner — skip it
     if (!gotBanner) {
       gotBanner = true
-      if (event.data.byteLength === 24) return
+      if (event.data instanceof ArrayBuffer && event.data.byteLength === 24) return
     }
 
     const blob = new Blob([event.data], { type: "image/jpeg" })
@@ -241,12 +243,14 @@ function connectStream(wsUrl, el) {
     img.src = url
   }
 
-  ws.onerror = () => {
+  ws.onerror = (e) => {
+    console.error("WS ERROR:", proxiedUrl, e)
     el.status.className = "status error"
     el.status.innerText = "stream error"
   }
 
-  ws.onclose = () => {
+  ws.onclose = (e) => {
+    console.warn("WS CLOSE:", proxiedUrl, "code:", e.code, "reason:", e.reason)
     el.status.className = "status error"
     el.status.innerText = "reconnecting..."
     setTimeout(() => connectStream(wsUrl, el), 5000)
