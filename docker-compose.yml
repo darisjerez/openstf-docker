@@ -28,7 +28,7 @@ services:
       --group-timeout 31536000 
       --no-screen-reset 
       --no-cleanup
-      --lock-rotation 
+      --lock-rotation true
       --mute-master always 
     restart: unless-stopped
 
