@@ -24,6 +24,7 @@ services:
       --adb-host 127.0.0.1
       --adb-port 5037
       --allow-remote
+      --device-timeout 0
     restart: unless-stopped
 
   stf-exporter:
