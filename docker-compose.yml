@@ -29,7 +29,7 @@ services:
       --no-screen-reset 
       --no-cleanup
       --lock-rotation 
-      --mute-master inuse 
+      --mute-master always 
     restart: unless-stopped
 
   stf-exporter:
