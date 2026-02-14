@@ -30,6 +30,7 @@ services:
       --no-cleanup
       --lock-rotation true
       --mute-master always 
+      --websocket-url ws://100.118.30.78/socket.io/
     restart: unless-stopped
 
   nginx:
