@@ -18,14 +18,14 @@ services:
       - /dev/bus/usb:/dev/bus/usb
     environment:
       - RETHINKDB_PORT_28015_TCP=tcp://127.0.0.1:28015
-      - STF_LOCAL_GROUP_TIMEOUT=31536000
+      - STF_LOCAL_GROUP_TIMEOUT=2000000
     command: >
       stf local
       --public-ip ${PUBLIC_IP}
       --adb-host 127.0.0.1
       --adb-port 5037
       --allow-remote
-      --group-timeout 31536000 
+      --group-timeout 2000000
       --no-screen-reset 
       --no-cleanup
       --lock-rotation true
