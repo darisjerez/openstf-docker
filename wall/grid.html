@@ -214,6 +214,9 @@ function connectStream(wsUrl, el) {
 
   ws.onopen = () => {
     console.log("WS OPEN:", proxiedUrl)
+    // Tell STF to start streaming frames
+    ws.send("size 480x800")
+    ws.send("on")
     el.status.className = "status connecting"
     el.status.innerText = "connected"
   }
