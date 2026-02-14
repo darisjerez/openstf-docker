@@ -219,11 +219,29 @@ function connectStream(wsUrl, el) {
   }
 
   ws.onmessage = event => {
-    console.log("WS MSG:", proxiedUrl, "size:", event.data.byteLength || event.data.length, "type:", typeof event.data)
-    // First message is a 24-byte minicap banner — skip it
+    // Handle text messages (ping/pong, protocol messages)
+    if (typeof event.data === "string") {
+      console.log("WS TEXT:", proxiedUrl, JSON.stringify(event.data))
+      if (event.data === "ping") {
+        ws.send("pong")
+      }
+      return
+    }
+
+    // Binary message
+    console.log("WS BIN:", proxiedUrl, "size:", event.data.byteLength)
+
+    // First binary message is a 24-byte minicap banner — skip it
     if (!gotBanner) {
       gotBanner = true
-      if (event.data instanceof ArrayBuffer && event.data.byteLength === 24) return
+      if (event.data.byteLength === 24) {
+        const view = new DataView(event.data)
+        console.log("Banner: version=" + view.getUint8(0),
+          "size=" + view.getUint8(1),
+          "width=" + view.getUint32(2, true),
+          "height=" + view.getUint32(6, true))
+        return
+      }
     }
 
     const blob = new Blob([event.data], { type: "image/jpeg" })
@@ -311,7 +329,7 @@ async function init() {
     if (el && el.classList.contains("live")) streaming++
   }
 
-  setStatus(`<span class="count">${devices.length}</span> devices — streaming`)
+  setStatus(`<span class="count">${devices.length}</span> devices streaming`)
 }
 
 // Release devices when leaving the page
