@@ -38,8 +38,8 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./wall:/usr/share/nginx/html
-      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./wall/grid.html:/usr/share/nginx/html/wall/index.html:ro
+      - ./wall/nginx.conf:/etc/nginx/nginx.conf:ro
     restart: unless-stopped
 
   stf-exporter:
