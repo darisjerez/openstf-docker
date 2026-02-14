@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Device Wall</title>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      font-family: sans-serif;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 8px;
+      padding: 8px;
+    }
+
+    .device {
+      background: #000;
+      border: 1px solid #333;
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .label {
+      position: absolute;
+      bottom: 4px;
+      left: 6px;
+      color: #0f0;
+      font-size: 12px;
+      background: rgba(0,0,0,0.6);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="grid" id="grid"></div>
+
+<script>
+const STF_URL = "http://100.118.30.78:7100"
+const WS_URL = "ws://100.118.30.78:7110"
+
+async function loadDevices() {
+  const res = await fetch(`${STF_URL}/api/v1/devices`)
+  const data = await res.json()
+
+  const devices = data.devices.filter(d => d.present)
+
+  devices.forEach(device => {
+    createViewer(device.serial, device.model)
+  })
+}
+
+function createViewer(serial, model) {
+  const container = document.createElement("div")
+  container.className = "device"
+
+  const canvas = document.createElement("canvas")
+  const ctx = canvas.getContext("2d")
+
+  const label = document.createElement("div")
+  label.className = "label"
+  label.innerText = model
+
+  container.appendChild(canvas)
+  container.appendChild(label)
+  document.getElementById("grid").appendChild(container)
+
+  const ws = new WebSocket(`${WS_URL}/?action=stream&serial=${serial}`)
+
+  ws.binaryType = "arraybuffer"
+
+  ws.onmessage = event => {
+    const blob = new Blob([event.data], { type: "image/jpeg" })
+    const img = new Image()
+
+    img.onload = () => {
+      canvas.width = img.width
+      canvas.height = img.height
+      ctx.drawImage(img, 0, 0)
+    }
+
+    img.src = URL.createObjectURL(blob)
+  }
+}
+
+loadDevices()
+</script>
+
+</body>
+</html>
