@@ -1,16 +1,43 @@
 # OpenSTF Device Farm
 
-A Docker Compose setup for running [STF (Smartphone Test Farm)](https://github.com/DeviceFarmer/stf) on macOS or Linux with USB-connected Android devices.
+A Docker Compose setup for running [STF (Smartphone Test Farm)](https://github.com/DeviceFarmer/stf) on a physical Ubuntu server with USB-connected Android devices. Includes a live device wall, monitoring stack (Prometheus + Grafana), and Spotify self-healing watcher.
+
+## Architecture
+
+```
+┌───────────────────────────────────────────────────────────┐
+│                  Ubuntu Server (Physical)                  │
+│  ┌─────────────┐    ┌───────────────────────────────┐     │
+│  │ ADB Server  │◄───│ USB Hub + 8 Android Devices   │     │
+│  │ (native)    │    └───────────────────────────────┘     │
+│  └──────┬──────┘                                          │
+│         │                                                  │
+│  ┌──────▼──────────────────────────────────────────────┐  │
+│  │              Docker (network_mode: host)             │  │
+│  │                                                      │  │
+│  │  ┌───────────┐  ┌───────┐  ┌───────────────────┐   │  │
+│  │  │ RethinkDB │  │  STF  │  │  Nginx (proxy +   │   │  │
+│  │  │ :28015    │  │ :7100 │  │  portal) :80      │   │  │
+│  │  └───────────┘  └───────┘  └───────────────────┘   │  │
+│  │                                                      │  │
+│  │  ┌────────────┐  ┌────────────┐  ┌─────────┐       │  │
+│  │  │ Exporter   │  │ Prometheus │  │ Grafana │       │  │
+│  │  │ :9105      │  │ :9090      │  │ :3000   │       │  │
+│  │  └────────────┘  └────────────┘  └─────────┘       │  │
+│  │                                                      │  │
+│  │  ┌─────────────────┐                                │  │
+│  │  │ Spotify Healer  │                                │  │
+│  │  │ :9106           │                                │  │
+│  │  └─────────────────┘                                │  │
+│  └─────────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────────┘
+```
 
 ## Prerequisites
 
-### macOS
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-- Android platform-tools: `brew install android-platform-tools`
-
-### Linux
+- Ubuntu server (physical, with USB ports)
 - Docker Engine 20.10+ and Docker Compose
-- Android platform-tools: `sudo apt install android-tools-adb` (Debian/Ubuntu)
+- Android platform-tools: `sudo apt install android-tools-adb`
 
 ## Quick Start
 
@@ -20,193 +47,248 @@ A Docker Compose setup for running [STF (Smartphone Test Farm)](https://github.c
    adb -a nodaemon server start &
    ```
 
-2. **Create your `.env` file**:
-
-   **macOS:**
+2. **Verify devices are connected:**
    ```bash
-   cp .env.example .env
-   sed -i '' "s/PUBLIC_IP=.*/PUBLIC_IP=$(ipconfig getifaddr en0)/" .env
+   adb devices -l
    ```
 
-   **Linux:**
+3. **Create your `.env` file:**
    ```bash
    cp .env.example .env
    sed -i "s/PUBLIC_IP=.*/PUBLIC_IP=$(hostname -I | awk '{print $1}')/" .env
    ```
 
-3. **Start the services**:
+4. **Start all services:**
    ```bash
    docker-compose up -d
    ```
 
-4. **Access the web UI** at `http://<your-ip>:7100`
+5. **Access the portal** at `http://<server-ip>` (port 80)
 
 ## Services
 
-| Service | Description | Ports |
-|---------|-------------|-------|
-| **rethinkdb** | Database for STF | 8080 (admin UI), 28015 (driver) |
-| **stf** | Device farm web application | 7100 (web), 7110 (websocket), 7400-7500 (device streams) |
+| Service | Description | Port | Image |
+|---------|-------------|------|-------|
+| **rethinkdb** | Database for STF | 8080 (admin), 28015 (driver) | `rethinkdb:2.4` |
+| **stf** | Device farm — device control, screen streaming | 7100 (web), 7110 (ws) | `devicefarmer/stf:latest` |
+| **nginx** | Reverse proxy — portal, wall, STF, Grafana, healer | 80 | `nginx:latest` |
+| **stf-exporter** | Prometheus exporter — per-device online/offline metrics | 9105 | `node:18` |
+| **prometheus** | Metrics scraping and storage | 9090 | `prom/prometheus` |
+| **grafana** | Dashboards and email alerts (Zoho SMTP) | 3000 | `grafana/grafana` |
+| **spotify-healer** | Auto-restarts Spotify playback on devices via ADB | 9106 | `node:18-alpine` |
 
-## Usage
+## Web Portal
 
-### Start Services
-```bash
-docker-compose up -d
-```
+Nginx serves a tabbed portal at `http://<server-ip>/` with three views:
 
-### Stop Services
-```bash
-docker-compose down
-```
+| Tab | Path | Description |
+|-----|------|-------------|
+| **Wall** | `/wall` | Live device screen grid — streams all connected devices via WebSocket |
+| **STF Panel** | `/stf/` | Full STF web UI for device control and management |
+| **Grafana** | `/grafana/` | Monitoring dashboards |
 
-### View Logs
-```bash
-# All services
-docker-compose logs -f
+The Wall tab is the default view. Switching tabs destroys the wall iframe to free resources, and reloads it when switching back.
 
-# STF only
-docker-compose logs -f stf
+### Device Wall
 
-# RethinkDB only
-docker-compose logs -f rethinkdb
-```
+The wall (`wall/grid.html`) displays a live grid of all connected device screens. It requires an STF access token:
 
-### Check Status
-```bash
-docker-compose ps
-```
+1. Log into STF at `http://<server-ip>:7100`
+2. Go to **Settings > Keys > Add a new key**
+3. Copy the token and paste it into the wall setup prompt
 
-### Restart Services
-```bash
-docker-compose restart
+The wall claims all present devices, opens WebSocket streams for each, and renders frames on canvas elements. Each device card has:
 
-# Or restart a specific service
-docker-compose restart stf
-```
+- **Stop/Resume** button — pauses or resumes the screen stream
+- **Spotify** toggle — enables/disables the Spotify self-healing watcher for that device
 
-### Remove Everything (including data)
-```bash
-docker-compose down -v
-```
+## Spotify Self-Healing Watcher
 
-## Configuration
+Devices in the farm play Spotify music continuously. The healer service automatically detects when Spotify stops playing and restarts playback via ADB.
 
-### .env File
+### How It Works
 
-The `.env` file contains configuration variables used by docker-compose:
+Every 10 seconds per watched device, the healer runs:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PUBLIC_IP` | Your host machine's local IP address | `192.168.1.100` |
-| `ADB_HOST` | ADB server hostname | `host.docker.internal` |
-| `ADB_PORT` | ADB server port | `5037` |
-| `STF_PORT` | STF web interface port | `7100` |
-| `STF_WS_PORT` | STF websocket port | `7110` |
+1. **`adb shell pidof com.spotify.music`** — checks if Spotify is running
+2. If not running: launches Spotify via `am start`, waits 3s, sends play command
+3. If running: checks `dumpsys media_session` for `state=3` (playing)
+4. If paused: sends `media dispatch play` (fallback: `input keyevent 126`)
 
-To set up your environment:
+### API
 
-**macOS:**
-```bash
-cp .env.example .env
-sed -i '' "s/PUBLIC_IP=.*/PUBLIC_IP=$(ipconfig getifaddr en0)/" .env
-```
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/healer/api/status` | All watcher states |
+| `POST` | `/healer/api/watch/:serial` | Start watching a device |
+| `DELETE` | `/healer/api/watch/:serial` | Stop watching a device |
+| `GET` | `/healer/api/watch/:serial` | Single device state |
+| `GET` | `/healer/metrics` | Prometheus metrics |
 
-**Linux:**
-```bash
-cp .env.example .env
-sed -i "s/PUBLIC_IP=.*/PUBLIC_IP=$(hostname -I | awk '{print $1}')/" .env
-```
+### Prometheus Metrics
 
-### Container Environment Variables
+| Metric | Type | Description |
+|--------|------|-------------|
+| `spotify_healer_watching{serial}` | gauge | Watcher active (1/0) |
+| `spotify_healer_playing{serial}` | gauge | Spotify playing (1/0) |
+| `spotify_healer_heal_total{serial}` | counter | Number of heal actions |
 
-| Variable | Description |
-|----------|-------------|
-| `RETHINKDB_PORT_28015_TCP` | Connection string to RethinkDB |
+## Monitoring
 
-### STF Command Options
+### STF Exporter (port 9105)
 
-These flags are configured via environment variables in `.env`:
+Reads device data from RethinkDB and exposes Prometheus metrics:
 
-| Flag | Env Variable | Description |
-|------|--------------|-------------|
-| `--public-ip` | `PUBLIC_IP` | Host machine's local IP (required for device streaming) |
-| `--adb-host` | `ADB_HOST` | ADB server host (`host.docker.internal` reaches host from Docker) |
-| `--adb-port` | `ADB_PORT` | ADB server port |
-| `--allow-remote` | - | Allow remote ADB connections (always enabled) |
+| Metric | Type | Description |
+|--------|------|-------------|
+| `stf_devices_total` | gauge | Total registered devices |
+| `stf_devices_online` | gauge | Currently online devices |
+| `stf_devices_offline` | gauge | Currently offline devices |
+| `stf_device_online{serial, model}` | gauge | Per-device status (1/0) |
 
-### Ports
+### Prometheus (port 9090)
 
-| Port | Env Variable | Purpose |
-|------|--------------|---------|
-| 7100 | `STF_PORT` | STF web interface |
-| 7110 | `STF_WS_PORT` | STF websocket connections |
-| 7400-7500 | - | Device screen streaming (one port per device) |
-| 8080 | - | RethinkDB admin console |
-| 28015 | - | RethinkDB driver connections |
+Scrapes metrics from:
+- STF exporter on `:9105` (every 15s)
+- Spotify healer on `:9106` (every 15s)
 
-## Volumes
+### Grafana (port 3000)
 
-| Volume | Purpose |
-|--------|---------|
-| `rethinkdb-data` | Persistent storage for RethinkDB |
+- Anonymous access enabled (Viewer role)
+- Embedded in the portal via `/grafana/` sub-path
+- Email alerts configured via Zoho SMTP
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `docker-compose.yml` | All 7 services |
+| `.env` | `PUBLIC_IP` for the server |
+| `wall/portal.html` | Tabbed portal page (Wall, STF, Grafana) |
+| `wall/grid.html` | Device wall — live screen grid with Spotify toggles |
+| `wall/nginx.conf` | Nginx config — proxies STF, Grafana, healer; serves portal and wall |
+| `exporter/stf-exporter.js` | Prometheus exporter for device online/offline status |
+| `healer/spotify-healer.js` | Spotify self-healing watcher service |
+| `healer/package.json` | Dependencies for the healer |
+| `prometheus.yml` | Scrape config for exporter and healer |
+
+## Connected Devices
+
+| Serial | Model | SDK |
+|--------|-------|-----|
+| 320216036286 | ZTE Blade L8 | 28 |
+| 5063698484070606 | S34 | 30 |
+| A41CF923 | T790W (Seattle 5G) | 30 |
+| DMEAVGPNSOSSSSYH | REVVL 2 | 27 |
+| LMK500TW8HYTRW7HJB | LG K500 | 29 |
+| R5CN60BYPPN | Samsung A71 (SM-A716U) | - |
+| R9WT60FF3NK | Samsung SM-S134DL | 33 |
+| ZT3226HXRF | Moto G20 | 30 |
 
 ## Device Setup
 
 Each Android device requires:
 
-1. **Developer Options** - Settings > About > Tap "Build Number" 7 times
-2. **USB Debugging** - Developer Options > Enable USB Debugging
-3. **Stay Awake** - Developer Options > Enable Stay Awake (recommended)
-4. **File Transfer Mode** - Set USB mode to MTP/File Transfer
-5. **Authorize Connection** - Accept the RSA key prompt on the device
+1. **Developer Options** — Settings > About > Tap "Build Number" 7 times
+2. **USB Debugging** — Developer Options > Enable USB Debugging
+3. **Stay Awake** — Developer Options > Enable Stay Awake (recommended)
+4. **File Transfer Mode** — Set USB mode to MTP/File Transfer
+5. **Authorize Connection** — Accept the RSA key prompt on the device
 
-Verify devices are connected:
+### Samsung Devices (Additional)
+
+- Enable: Settings > Developer Options > USB debugging (Security settings)
+- May need: Settings > Biometrics and Security > Device admin apps > Allow STFService
+
+## Configuration
+
+### .env File
+
+| Variable | Description |
+|----------|-------------|
+| `PUBLIC_IP` | Server's local IP address (required) |
+
 ```bash
-adb devices -l
+cp .env.example .env
+sed -i "s/PUBLIC_IP=.*/PUBLIC_IP=$(hostname -I | awk '{print $1}')/" .env
 ```
 
-## Platform-Specific Notes
+### Nginx Proxy Routes
 
-### macOS
-- `host.docker.internal` works out of the box with Docker Desktop
-- Find your IP with: `ipconfig getifaddr en0`
+| Path | Backend | Purpose |
+|------|---------|---------|
+| `/` | `portal.html` (static) | Tabbed portal page |
+| `/wall` | `grid.html` (static) | Device wall |
+| `/stf/` | `172.17.0.1:7100` | STF web UI |
+| `/grafana/` | `172.17.0.1:3000` | Grafana dashboards |
+| `/healer/` | `172.17.0.1:9106` | Spotify healer API |
+| `/screen/:port` | `172.17.0.1:<port>` | WebSocket screen streams |
+| `/*` | `172.17.0.1:7100` | STF API and static assets (fallback) |
 
-### Linux
-- `host.docker.internal` requires Docker 20.10+
-- For older Docker versions, add this to the `stf` service in `docker-compose.yml`:
-  ```yaml
-  extra_hosts:
-    - "host.docker.internal:host-gateway"
-  ```
-- Find your IP with: `hostname -I | awk '{print $1}'`
-- You may need to add your user to the `docker` group: `sudo usermod -aG docker $USER`
+## Usage
+
+```bash
+# Start all services
+docker-compose up -d
+
+# Start a specific service
+docker-compose up -d spotify-healer
+
+# View logs
+docker-compose logs -f              # all services
+docker-compose logs -f stf           # STF only
+docker-compose logs -f spotify-healer # healer only
+
+# Check status
+docker-compose ps
+
+# Restart services
+docker-compose restart
+docker-compose restart nginx         # after config changes
+
+# Stop everything
+docker-compose down
+
+# Stop and remove volumes (destructive)
+docker-compose down -v
+```
 
 ## Troubleshooting
 
-### Devices not appearing in STF
-- Ensure ADB server is running with `-a` flag for remote access
-- Check that devices show as "device" (not "unauthorized") in `adb devices`
-- Verify your `PUBLIC_IP` in `.env` matches your current IP
+### Device Not Detected by ADB
+1. Check USB cable supports data (not charge-only)
+2. Check USB notification on device — set to File Transfer mode
+3. Revoke USB debugging authorizations and reconnect
+4. Try different USB port/cable
+5. Check with `lsusb` (hardware level)
 
-### Blank screen when using a device
+### STF Can't Connect to Devices
+1. Ensure ADB server is running: `adb -a nodaemon server start &`
+2. Verify `--adb-host 127.0.0.1` in `docker-compose.yml`
+3. Check `PUBLIC_IP` in `.env` matches the server's actual IP
+
+### Blank Screen in STF
 - Unlock the device screen
+- Check for authorization dialogs on device
 - Enable "Stay Awake" in Developer Options
-- Check for permission dialogs on the device
+- Try clicking "Use" again in STF web UI
 
-### Connection refused errors
-- Restart ADB server: `adb kill-server && adb -a nodaemon server start &`
-- Restart STF: `docker-compose restart stf`
+### Wall Shows "no stream"
+- Ensure the STF access token is valid (regenerate if needed)
+- Check that devices aren't claimed by another STF user
+- Verify STF is running: `docker-compose logs stf`
 
-### Port conflicts
-If ports are already in use, update the values in `.env`:
-```bash
-STF_PORT=7101
-STF_WS_PORT=7111
-```
+### Spotify Healer Not Working
+- Check healer logs: `docker-compose logs spotify-healer`
+- Test API directly: `curl http://<server-ip>:9106/api/status`
+- Verify ADB can reach devices: `adb devices` on the host
 
-### Linux: host.docker.internal not resolving
-If using Docker < 20.10, add `extra_hosts` to `docker-compose.yml` (see Platform-Specific Notes above).
+## Volumes
+
+| Volume | Purpose |
+|--------|---------|
+| `rethinkdb-data` | Persistent RethinkDB storage |
+| `grafana-data` | Persistent Grafana dashboards and settings |
 
 ## License
 
