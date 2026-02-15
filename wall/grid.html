@@ -89,6 +89,36 @@
       background: #444;
     }
 
+    .spotify-toggle {
+      background: #333;
+      color: #ccc;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      margin-left: 4px;
+    }
+
+    .spotify-toggle:hover {
+      background: #444;
+    }
+
+    .spotify-toggle.active {
+      background: #1DB954;
+      color: #fff;
+      border-color: #1DB954;
+    }
+
+    .spotify-toggle.healing {
+      animation: pulse-green 1s ease-in-out infinite;
+    }
+
+    @keyframes pulse-green {
+      0%, 100% { background: #1DB954; }
+      50% { background: #15843d; }
+    }
+
     .setup {
       color: #ccc;
       max-width: 500px;
@@ -183,13 +213,19 @@ function createDeviceEl(serial, model) {
   btn.innerText = "Stop"
   controls.appendChild(btn)
 
+  const spotifyBtn = document.createElement("button")
+  spotifyBtn.className = "spotify-toggle"
+  spotifyBtn.innerText = "\u266B Spotify"
+  spotifyBtn.onclick = () => toggleSpotify(serial, spotifyBtn)
+  controls.appendChild(spotifyBtn)
+
   container.appendChild(canvas)
   container.appendChild(label)
   container.appendChild(status)
   container.appendChild(controls)
   document.getElementById("grid").appendChild(container)
 
-  return { canvas, status, btn }
+  return { canvas, status, btn, spotifyBtn }
 }
 
 async function claimDevice(serial) {
@@ -337,6 +373,36 @@ async function startDevice(serial, model) {
   }
 }
 
+async function toggleSpotify(serial, btn) {
+  const isActive = btn.classList.contains("active")
+  try {
+    if (isActive) {
+      await fetch("/healer/api/watch/" + serial, { method: "DELETE" })
+      btn.classList.remove("active", "healing")
+    } else {
+      await fetch("/healer/api/watch/" + serial, { method: "POST" })
+      btn.classList.add("active")
+    }
+  } catch (err) {
+    console.error("healer toggle failed:", err)
+  }
+}
+
+async function syncHealerStatus() {
+  try {
+    const res = await fetch("/healer/api/status")
+    const data = await res.json()
+    for (const [serial, state] of Object.entries(data)) {
+      const el = document.querySelector("#dev-" + serial + " .spotify-toggle")
+      if (el && state.watching) {
+        el.classList.add("active")
+      }
+    }
+  } catch (err) {
+    console.warn("healer status unavailable:", err.message)
+  }
+}
+
 async function init() {
   const token = getToken()
   if (!token) {
@@ -367,6 +433,9 @@ async function init() {
   await Promise.all(devices.map(d => startDevice(d.serial, d.model)))
 
   setStatus(`<span class="count">${devices.length}</span> devices streaming`)
+
+  // Sync Spotify watcher toggle states from healer service
+  await syncHealerStatus()
 }
 
 // Release devices when leaving the page

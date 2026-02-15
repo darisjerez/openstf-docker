@@ -57,6 +57,18 @@ services:
       - "9105:9105"
     restart: unless-stopped
 
+  spotify-healer:
+    image: node:18-alpine
+    container_name: spotify-healer
+    working_dir: /app
+    volumes:
+      - ./healer:/app
+    command: sh -c "apk add --no-cache android-tools && npm install && node spotify-healer.js"
+    network_mode: host
+    ports:
+      - "9106:9106"
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus
     container_name: prometheus
