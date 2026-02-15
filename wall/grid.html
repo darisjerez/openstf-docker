@@ -265,7 +265,7 @@ function connectStream(wsUrl, el) {
     }
 
     ws.onopen = () => {
-      ws.send("size 240x400")
+      ws.send("size 480x800")
       ws.send("on")
       el.status.className = "status live"
       el.status.innerText = "live"
