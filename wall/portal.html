@@ -73,6 +73,12 @@
 </div>
 
 <script>
+// If portal loads inside an iframe (STF navigated to / via hashbang routing),
+// redirect to /stf/ so the STF UI loads instead of nesting the portal
+if (window.self !== window.top) {
+  window.location.replace('/stf/' + window.location.hash);
+}
+
 const sources = {
   wall: '/wall',
   stf: '/stf/',
