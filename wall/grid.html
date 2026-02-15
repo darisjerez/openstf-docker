@@ -205,9 +205,11 @@ async function claimDevice(serial) {
     body: JSON.stringify({ serial: serial, timeout: 900000 })
   })
 
-  // Poll for display URL (STF needs a moment to start minicap)
+  // Poll for display URL with backoff (200ms → 400ms → 800ms → 2000ms max)
+  let delay = 200
   for (let i = 0; i < 15; i++) {
-    await new Promise(r => setTimeout(r, 1000))
+    await new Promise(r => setTimeout(r, delay))
+    delay = Math.min(delay * 2, 2000)
 
     const res = await fetch("/api/v1/user/devices/" + serial, {
       headers: { "Authorization": "Bearer " + token }
@@ -242,9 +244,28 @@ function connectStream(wsUrl, el) {
 
     const ctx = el.canvas.getContext("2d")
     let gotBanner = false
+    let pendingFrame = null
+    let rendering = false
+    let canvasW = 0, canvasH = 0
+
+    function renderFrame() {
+      if (!pendingFrame) { rendering = false; return }
+      rendering = true
+      const data = pendingFrame
+      pendingFrame = null
+      createImageBitmap(new Blob([data], { type: "image/jpeg" })).then(bmp => {
+        if (bmp.width !== canvasW || bmp.height !== canvasH) {
+          canvasW = el.canvas.width = bmp.width
+          canvasH = el.canvas.height = bmp.height
+        }
+        ctx.drawImage(bmp, 0, 0)
+        bmp.close()
+        renderFrame()
+      }).catch(() => { rendering = false })
+    }
 
     ws.onopen = () => {
-      ws.send("size 480x800")
+      ws.send("size 240x400")
       ws.send("on")
       el.status.className = "status live"
       el.status.innerText = "live"
@@ -261,19 +282,8 @@ function connectStream(wsUrl, el) {
         if (event.data.byteLength === 24) return
       }
 
-      const blob = new Blob([event.data], { type: "image/jpeg" })
-      const url = URL.createObjectURL(blob)
-      const img = new Image()
-
-      img.onload = () => {
-        el.canvas.width = img.width
-        el.canvas.height = img.height
-        ctx.drawImage(img, 0, 0)
-        URL.revokeObjectURL(url)
-      }
-
-      img.onerror = () => URL.revokeObjectURL(url)
-      img.src = url
+      pendingFrame = event.data
+      if (!rendering) renderFrame()
     }
 
     ws.onerror = () => {
@@ -353,13 +363,8 @@ async function init() {
   const devices = data.devices.filter(d => d.present)
   setStatus(`<span class="count">${devices.length}</span> devices found — claiming...`)
 
-  // Claim devices sequentially to avoid overwhelming STF
-  let streaming = 0
-  for (const device of devices) {
-    await startDevice(device.serial, device.model)
-    const el = document.querySelector("#dev-" + CSS.escape(device.serial) + " .status")
-    if (el && el.classList.contains("live")) streaming++
-  }
+  // Claim all devices in parallel
+  await Promise.all(devices.map(d => startDevice(d.serial, d.model)))
 
   setStatus(`<span class="count">${devices.length}</span> devices streaming`)
 }
