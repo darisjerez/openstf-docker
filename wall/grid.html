@@ -133,6 +133,16 @@
 
 <script>
 const TOKEN_KEY = "stf_wall_token"
+const streamControllers = []
+
+// Listen for pause/resume from parent portal
+window.addEventListener('message', event => {
+  if (event.data === 'pause-streams') {
+    streamControllers.forEach(c => c.pause())
+  } else if (event.data === 'resume-streams') {
+    streamControllers.forEach(c => c.resume())
+  }
+})
 
 function getToken() {
   return localStorage.getItem(TOKEN_KEY) || ""
@@ -313,6 +323,28 @@ function connectStream(wsUrl, el) {
       if (ws) ws.close()
     }
   }
+
+  // Expose pause/resume for parent portal tab switching
+  let wasLive = false
+  streamControllers.push({
+    pause() {
+      if (!stopped) {
+        wasLive = true
+        stopped = true
+        el.status.className = "status paused"
+        el.status.innerText = "standby"
+        if (ws) ws.close()
+      }
+    },
+    resume() {
+      if (wasLive) {
+        wasLive = false
+        stopped = false
+        el.btn.innerText = "Stop"
+        start()
+      }
+    }
+  })
 
   start()
 }

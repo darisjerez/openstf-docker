@@ -105,6 +105,10 @@ document.querySelectorAll('.tab').forEach(tab => {
       frame.src = sources[target];
       loaded[target] = true;
     }
+
+    // Pause wall streams when switching away, resume when switching back
+    const wallFrame = document.getElementById('frame-wall');
+    wallFrame.contentWindow.postMessage(target === 'wall' ? 'resume-streams' : 'pause-streams', '*');
   });
 });
 </script>
