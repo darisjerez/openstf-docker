@@ -39,6 +39,7 @@ services:
       - "80:80"
     volumes:
       - ./wall/grid.html:/usr/share/nginx/html/wall/index.html
+      - ./wall/portal.html:/usr/share/nginx/html/portal.html
       - ./wall/nginx.conf:/etc/nginx/nginx.conf
     restart: unless-stopped
 
@@ -81,6 +82,11 @@ services:
     - GF_SMTP_FROM_ADDRESS=dj@digitalpathrd.com
     - GF_SMTP_FROM_NAME=STF Monitor
     - GF_SMTP_SKIP_VERIFY=false
+    - GF_SERVER_ROOT_URL=http://%(domain)s/grafana/
+    - GF_SERVER_SERVE_FROM_SUB_PATH=true
+    - GF_SECURITY_ALLOW_EMBEDDING=true
+    - GF_AUTH_ANONYMOUS_ENABLED=true
+    - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
     restart: unless-stopped
 
 volumes:
