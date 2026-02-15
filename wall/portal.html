@@ -101,14 +101,18 @@ document.querySelectorAll('.tab').forEach(tab => {
     frame.classList.add('active');
 
     // Lazy-load: set src on first click
-    if (!loaded[target]) {
+    if (!loaded[target] && target !== 'wall') {
       frame.src = sources[target];
       loaded[target] = true;
     }
 
-    // Pause wall streams when switching away, resume when switching back
+    // Kill wall iframe when switching away, reload when switching back
     const wallFrame = document.getElementById('frame-wall');
-    wallFrame.contentWindow.postMessage(target === 'wall' ? 'resume-streams' : 'pause-streams', '*');
+    if (target === 'wall') {
+      wallFrame.src = '/wall';
+    } else {
+      wallFrame.src = 'about:blank';
+    }
   });
 });
 </script>
