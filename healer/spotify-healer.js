@@ -5,7 +5,7 @@ const PORT = 9106
 const HEAL_INTERVAL = 10000
 const ADB_TIMEOUT = 10000
 
-// State per device: { serial: { watching, spotifyRunning, spotifyPlaying, healCount, lastHealAction, lastError, _timer, _healing } }
+// State per device: { serial: { watching, spotifyRunning, spotifyPlaying, healCount, healsLaunched, healsPlaySent, batteryLevel, lastHealAction, lastError, _timer, _healing } }
 const devices = {}
 
 function adb(serial, args) {
@@ -23,6 +23,15 @@ async function healCycle(serial) {
   state._healing = true
 
   try {
+    // Read battery level
+    try {
+      const batteryDump = await adb(serial, ['shell', 'dumpsys', 'battery'])
+      const match = batteryDump.match(/level:\s*(\d+)/)
+      if (match) state.batteryLevel = parseInt(match[1], 10)
+    } catch (e) {
+      // Non-fatal — keep previous value
+    }
+
     // Step 1: Is Spotify running?
     let pid = ''
     try {
@@ -37,6 +46,7 @@ async function healCycle(serial) {
       // Spotify not running — launch it
       state.lastHealAction = 'launched Spotify'
       state.healCount++
+      state.healsLaunched++
       console.log(`[${serial}] Spotify not running — launching`)
       await adb(serial, ['shell', 'am', 'start', '-n', 'com.spotify.music/.MainActivity'])
       await new Promise(r => setTimeout(r, 3000))
@@ -66,6 +76,7 @@ async function healCycle(serial) {
       if (!isPlaying) {
         state.lastHealAction = 'sent play command'
         state.healCount++
+        state.healsPlaySent++
         console.log(`[${serial}] Spotify paused — sending play`)
         try {
           await adb(serial, ['shell', 'media', 'dispatch', 'play'])
@@ -118,6 +129,9 @@ function startWatching(serial) {
     spotifyRunning: false,
     spotifyPlaying: false,
     healCount: 0,
+    healsLaunched: 0,
+    healsPlaySent: 0,
+    batteryLevel: -1,
     lastHealAction: null,
     lastError: null,
     _healing: false,
@@ -149,6 +163,9 @@ function publicState(state) {
     spotifyRunning: state.spotifyRunning,
     spotifyPlaying: state.spotifyPlaying,
     healCount: state.healCount,
+    healsLaunched: state.healsLaunched,
+    healsPlaySent: state.healsPlaySent,
+    batteryLevel: state.batteryLevel,
     lastHealAction: state.lastHealAction,
     lastError: state.lastError
   }
@@ -199,13 +216,22 @@ app.get('/metrics', (req, res) => {
     '# HELP spotify_healer_playing Whether Spotify is currently playing on a device',
     '# TYPE spotify_healer_playing gauge',
     '# HELP spotify_healer_heal_total Number of heal actions performed',
-    '# TYPE spotify_healer_heal_total counter'
+    '# TYPE spotify_healer_heal_total counter',
+    '# HELP spotify_healer_battery_level Battery percentage of the device',
+    '# TYPE spotify_healer_battery_level gauge',
+    '# HELP spotify_healer_heals_total Number of heal actions by type',
+    '# TYPE spotify_healer_heals_total counter'
   ]
 
   for (const [serial, state] of Object.entries(devices)) {
     lines.push(`spotify_healer_watching{serial="${serial}"} ${state.watching ? 1 : 0}`)
     lines.push(`spotify_healer_playing{serial="${serial}"} ${state.spotifyPlaying ? 1 : 0}`)
     lines.push(`spotify_healer_heal_total{serial="${serial}"} ${state.healCount}`)
+    if (state.batteryLevel >= 0) {
+      lines.push(`spotify_healer_battery_level{serial="${serial}"} ${state.batteryLevel}`)
+    }
+    lines.push(`spotify_healer_heals_total{serial="${serial}",action="launched"} ${state.healsLaunched}`)
+    lines.push(`spotify_healer_heals_total{serial="${serial}",action="play_sent"} ${state.healsPlaySent}`)
   }
 
   res.set('Content-Type', 'text/plain; version=0.0.4')

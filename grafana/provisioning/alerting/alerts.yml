@@ -1,0 +1,94 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: spotify-battery-alerts
+    folder: ''
+    interval: 1m
+    rules:
+      - uid: low-battery-alert
+        title: Low Battery
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: dfcz47nsq0gzkd
+            model:
+              expr: spotify_healer_battery_level
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: lt
+                    params:
+                      - 15
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              refId: C
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Battery below 15% on {{ $labels.serial }}"
+
+      - uid: spotify-heal-event
+        title: Spotify Heal Event
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: dfcz47nsq0gzkd
+            model:
+              expr: increase(spotify_healer_heals_total[5m])
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params:
+                      - 0
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              refId: C
+        for: 0s
+        labels:
+          severity: info
+        annotations:
+          summary: "Spotify healed on {{ $labels.serial }} ({{ $labels.action }})"
+
+contactPoints:
+  - orgId: 1
+    name: grafana-default-email
+    receivers:
+      - uid: default-email
+        type: email
+        settings:
+          addresses: dj@digitalpathrd.com
+
+policies:
+  - orgId: 1
+    receiver: grafana-default-email
