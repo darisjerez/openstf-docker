@@ -3,7 +3,7 @@ apiVersion: 1
 groups:
   - orgId: 1
     name: spotify-battery-alerts
-    folder: ''
+    folder: Spotify & Battery
     interval: 1m
     rules:
       - uid: low-battery-alert
