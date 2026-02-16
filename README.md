@@ -108,7 +108,7 @@ Devices in the farm play Spotify music continuously. The healer service automati
 
 ### How It Works
 
-Every 10 seconds per watched device, the healer runs:
+Every 5 minutes per watched device, the healer runs:
 
 1. **`adb shell pidof com.spotify.music`** — checks if Spotify is running
 2. If not running: launches Spotify via `am start`, waits 3s, sends play command
@@ -129,9 +129,11 @@ Every 10 seconds per watched device, the healer runs:
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `spotify_healer_watching{serial}` | gauge | Watcher active (1/0) |
-| `spotify_healer_playing{serial}` | gauge | Spotify playing (1/0) |
-| `spotify_healer_heal_total{serial}` | counter | Number of heal actions |
+| `spotify_healer_watching{serial,model}` | gauge | Watcher active (1/0) |
+| `spotify_healer_playing{serial,model}` | gauge | Spotify playing (1/0) |
+| `spotify_healer_heal_total{serial,model}` | counter | Number of heal actions |
+| `spotify_healer_battery_level{serial,model}` | gauge | Battery percentage |
+| `spotify_healer_heals_total{serial,model,action}` | counter | Heals by type (launched/play_sent) |
 
 ## Monitoring
 
