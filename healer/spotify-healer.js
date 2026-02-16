@@ -146,11 +146,14 @@ function startWatching(serial) {
     _timer: null
   }
 
-  // Run first cycle immediately, then every HEAL_INTERVAL
-  healCycle(serial)
-  state._timer = setInterval(() => healCycle(serial), HEAL_INTERVAL)
+  // Stagger first cycle with a random delay so devices don't all heal at once
+  const stagger = Math.floor(Math.random() * HEAL_INTERVAL)
+  state._staggerTimer = setTimeout(() => {
+    healCycle(serial)
+    state._timer = setInterval(() => healCycle(serial), HEAL_INTERVAL)
+  }, stagger)
   devices[serial] = state
-  console.log(`[${serial}] watcher started`)
+  console.log(`[${serial}] watcher started (first cycle in ${Math.round(stagger / 1000)}s)`)
   return state
 }
 
@@ -158,6 +161,7 @@ function stopWatching(serial) {
   const state = devices[serial]
   if (!state) return false
   state.watching = false
+  if (state._staggerTimer) clearTimeout(state._staggerTimer)
   if (state._timer) clearInterval(state._timer)
   delete devices[serial]
   console.log(`[${serial}] watcher stopped`)
