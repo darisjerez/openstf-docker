@@ -2,7 +2,7 @@ const express = require('express')
 const { execFile } = require('child_process')
 const app = express()
 const PORT = 9106
-const HEAL_INTERVAL = 10000
+const HEAL_INTERVAL = 300000
 const ADB_TIMEOUT = 10000
 
 // State per device: { serial: { watching, spotifyRunning, spotifyPlaying, healCount, healsLaunched, healsPlaySent, batteryLevel, lastHealAction, lastError, _timer, _healing } }
@@ -23,6 +23,13 @@ async function healCycle(serial) {
   state._healing = true
 
   try {
+    // Fetch device model name (once)
+    if (!state.model) {
+      try {
+        state.model = await adb(serial, ['shell', 'getprop', 'ro.product.model'])
+      } catch (e) { /* retry next cycle */ }
+    }
+
     // Read battery level
     try {
       const batteryDump = await adb(serial, ['shell', 'dumpsys', 'battery'])
@@ -132,6 +139,7 @@ function startWatching(serial) {
     healsLaunched: 0,
     healsPlaySent: 0,
     batteryLevel: -1,
+    model: '',
     lastHealAction: null,
     lastError: null,
     _healing: false,
@@ -166,6 +174,7 @@ function publicState(state) {
     healsLaunched: state.healsLaunched,
     healsPlaySent: state.healsPlaySent,
     batteryLevel: state.batteryLevel,
+    model: state.model,
     lastHealAction: state.lastHealAction,
     lastError: state.lastError
   }
@@ -224,14 +233,16 @@ app.get('/metrics', (req, res) => {
   ]
 
   for (const [serial, state] of Object.entries(devices)) {
-    lines.push(`spotify_healer_watching{serial="${serial}"} ${state.watching ? 1 : 0}`)
-    lines.push(`spotify_healer_playing{serial="${serial}"} ${state.spotifyPlaying ? 1 : 0}`)
-    lines.push(`spotify_healer_heal_total{serial="${serial}"} ${state.healCount}`)
+    const model = state.model || ''
+    const labels = `serial="${serial}",model="${model}"`
+    lines.push(`spotify_healer_watching{${labels}} ${state.watching ? 1 : 0}`)
+    lines.push(`spotify_healer_playing{${labels}} ${state.spotifyPlaying ? 1 : 0}`)
+    lines.push(`spotify_healer_heal_total{${labels}} ${state.healCount}`)
     if (state.batteryLevel >= 0) {
-      lines.push(`spotify_healer_battery_level{serial="${serial}"} ${state.batteryLevel}`)
+      lines.push(`spotify_healer_battery_level{${labels}} ${state.batteryLevel}`)
     }
-    lines.push(`spotify_healer_heals_total{serial="${serial}",action="launched"} ${state.healsLaunched}`)
-    lines.push(`spotify_healer_heals_total{serial="${serial}",action="play_sent"} ${state.healsPlaySent}`)
+    lines.push(`spotify_healer_heals_total{${labels},action="launched"} ${state.healsLaunched}`)
+    lines.push(`spotify_healer_heals_total{${labels},action="play_sent"} ${state.healsPlaySent}`)
   }
 
   res.set('Content-Type', 'text/plain; version=0.0.4')

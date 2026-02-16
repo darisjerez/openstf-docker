@@ -18,7 +18,7 @@
       "targets": [
         {
           "expr": "spotify_healer_battery_level",
-          "legendFormat": "{{ serial }}",
+          "legendFormat": "{{ model }} ({{ serial }})",
           "refId": "A"
         }
       ],
@@ -58,7 +58,7 @@
       "targets": [
         {
           "expr": "spotify_healer_battery_level",
-          "legendFormat": "{{ serial }}",
+          "legendFormat": "{{ model }} ({{ serial }})",
           "refId": "A"
         }
       ],
@@ -103,7 +103,7 @@
       "targets": [
         {
           "expr": "increase(spotify_healer_heals_total[5m])",
-          "legendFormat": "{{ serial }} ({{ action }})",
+          "legendFormat": "{{ model }} ({{ serial }}) — {{ action }}",
           "refId": "A"
         }
       ],
@@ -196,10 +196,15 @@
               "job 1": true,
               "job 2": true,
               "job 3": true,
-              "job 4": true
+              "job 4": true,
+              "model 1": true,
+              "model 2": true,
+              "model 3": true,
+              "model 4": true
             },
             "renameByName": {
               "serial": "Device",
+              "model": "Model",
               "Value #A": "Watching",
               "Value #B": "Playing",
               "Value #C": "Battery %",
@@ -207,10 +212,11 @@
             },
             "indexByName": {
               "serial": 0,
-              "Value #A": 1,
-              "Value #B": 2,
-              "Value #C": 3,
-              "Value #D": 4
+              "model": 1,
+              "Value #A": 2,
+              "Value #B": 3,
+              "Value #C": 4,
+              "Value #D": 5
             }
           }
         }

@@ -201,7 +201,7 @@ function createDeviceEl(serial, model) {
 
   const label = document.createElement("div")
   label.className = "label"
-  label.innerText = model || serial
+  label.innerText = model ? `${model} (${serial})` : serial
 
   const status = document.createElement("div")
   status.className = "status connecting"
