@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Device Farm</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -55,6 +56,14 @@
 
     .frame-container iframe.active {
       display: block;
+    }
+
+    @media (max-width: 600px) {
+      .tab {
+        flex: 1;
+        text-align: center;
+        padding: 12px 8px;
+      }
     }
   </style>
 </head>

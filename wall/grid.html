@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Device Wall</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
       margin: 0;
@@ -128,6 +129,24 @@
       padding: 2px 6px;
       border-radius: 3px;
       color: #0f0;
+    }
+
+    @media (max-width: 600px) {
+      .grid {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      }
+
+      .controls button, .spotify-toggle {
+        padding: 8px 16px;
+      }
+
+      .label {
+        font-size: 13px;
+      }
+
+      .status {
+        font-size: 11px;
+      }
     }
   </style>
 </head>
