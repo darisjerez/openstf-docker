@@ -94,7 +94,6 @@
       padding: 4px 10px;
       font-size: 12px;
       cursor: pointer;
-      margin-left: 4px;
     }
 
     .spotify-toggle:hover {
@@ -109,6 +108,42 @@
 
     .spotify-toggle.healing {
       animation: pulse-green 1s ease-in-out infinite;
+    }
+
+    .spotify-countdown {
+      font-size: 10px;
+      display: block;
+      margin-top: 1px;
+    }
+
+    .duration-picker {
+      position: absolute;
+      bottom: 100%;
+      right: 0;
+      margin-bottom: 4px;
+      background: #222;
+      border: 1px solid #555;
+      border-radius: 6px;
+      overflow: hidden;
+      z-index: 20;
+      min-width: 130px;
+      box-shadow: 0 -4px 12px rgba(0,0,0,0.5);
+    }
+
+    .duration-option {
+      padding: 8px 14px;
+      color: #ccc;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .duration-option:hover {
+      background: #333;
+    }
+
+    .duration-option.selected {
+      color: #1DB954;
     }
 
     @keyframes pulse-green {
@@ -147,6 +182,23 @@
       .status {
         font-size: 11px;
       }
+
+      .duration-picker {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        margin-bottom: 0;
+        border-radius: 12px 12px 0 0;
+        min-width: auto;
+      }
+
+      .duration-option {
+        padding: 14px 20px;
+        font-size: 16px;
+        text-align: center;
+        border-bottom: 1px solid #333;
+      }
     }
   </style>
 </head>
@@ -178,6 +230,35 @@
 
 <script>
 const TOKEN_KEY = "stf_wall_token"
+const DURATION_KEY = "stf_healer_duration"
+
+const DURATION_OPTIONS = [
+  { label: '15 minutes', ms: 15 * 60 * 1000 },
+  { label: '1 hour', ms: 60 * 60 * 1000 },
+  { label: '6 hours', ms: 6 * 60 * 60 * 1000 },
+  { label: '12 hours', ms: 12 * 60 * 60 * 1000 },
+  { label: 'Infinite', ms: 0 }
+]
+
+function getLastDuration() {
+  const v = parseInt(localStorage.getItem(DURATION_KEY), 10)
+  return isNaN(v) ? 0 : v
+}
+
+function saveLastDuration(ms) {
+  localStorage.setItem(DURATION_KEY, String(ms))
+}
+
+function formatRemaining(ms) {
+  if (ms <= 0) return ''
+  const s = Math.floor(ms / 1000)
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  if (h > 0) return h + 'h ' + m + 'm'
+  if (m > 0) return m + 'm ' + sec + 's'
+  return sec + 's'
+}
 
 function getToken() {
   return localStorage.getItem(TOKEN_KEY) || ""
@@ -228,11 +309,18 @@ function createDeviceEl(serial, model) {
   btn.innerText = "Stop"
   controls.appendChild(btn)
 
+  const spotifyWrap = document.createElement("span")
+  spotifyWrap.style.position = "relative"
+  spotifyWrap.style.display = "inline-block"
+  spotifyWrap.style.marginLeft = "4px"
+
   const spotifyBtn = document.createElement("button")
   spotifyBtn.className = "spotify-toggle"
-  spotifyBtn.innerText = "\u266B Spotify"
-  spotifyBtn.onclick = () => toggleSpotify(serial, spotifyBtn)
-  controls.appendChild(spotifyBtn)
+  spotifyBtn.innerHTML = "\u266B Spotify"
+  spotifyBtn.onclick = (e) => { e.stopPropagation(); toggleSpotify(serial, spotifyBtn, spotifyWrap) }
+
+  spotifyWrap.appendChild(spotifyBtn)
+  controls.appendChild(spotifyWrap)
 
   container.appendChild(canvas)
   container.appendChild(label)
@@ -388,20 +476,94 @@ async function startDevice(serial, model) {
   }
 }
 
-async function toggleSpotify(serial, btn) {
+function closePickers() {
+  document.querySelectorAll('.duration-picker').forEach(p => p.remove())
+}
+
+function showDurationPicker(serial, btn, wrap) {
+  closePickers()
+  const picker = document.createElement('div')
+  picker.className = 'duration-picker'
+  const lastDuration = getLastDuration()
+
+  DURATION_OPTIONS.forEach(opt => {
+    const item = document.createElement('div')
+    item.className = 'duration-option'
+    if (opt.ms === lastDuration) item.classList.add('selected')
+    item.textContent = opt.label
+    item.onclick = async (e) => {
+      e.stopPropagation()
+      picker.remove()
+      saveLastDuration(opt.ms)
+      try {
+        const res = await fetch("/healer/api/watch/" + serial, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ duration: opt.ms })
+        })
+        const data = await res.json()
+        btn.classList.add("active")
+        if (data.expiresAt) {
+          btn.dataset.expiresAt = data.expiresAt
+        } else {
+          delete btn.dataset.expiresAt
+        }
+        updateCountdownText(btn)
+      } catch (err) {
+        console.error("healer start failed:", err)
+      }
+    }
+    picker.appendChild(item)
+  })
+
+  wrap.appendChild(picker)
+}
+
+async function toggleSpotify(serial, btn, wrap) {
   const isActive = btn.classList.contains("active")
   try {
     if (isActive) {
+      closePickers()
       await fetch("/healer/api/watch/" + serial, { method: "DELETE" })
       btn.classList.remove("active", "healing")
+      delete btn.dataset.expiresAt
+      updateCountdownText(btn)
     } else {
-      await fetch("/healer/api/watch/" + serial, { method: "POST" })
-      btn.classList.add("active")
+      showDurationPicker(serial, btn, wrap)
     }
   } catch (err) {
     console.error("healer toggle failed:", err)
   }
 }
+
+function updateCountdownText(btn) {
+  let countdownEl = btn.querySelector('.spotify-countdown')
+  const expiresAt = parseInt(btn.dataset.expiresAt, 10)
+  if (!expiresAt || isNaN(expiresAt)) {
+    if (countdownEl) countdownEl.remove()
+    return
+  }
+  const remaining = expiresAt - Date.now()
+  if (remaining <= 0) {
+    btn.classList.remove("active", "healing")
+    delete btn.dataset.expiresAt
+    if (countdownEl) countdownEl.remove()
+    return
+  }
+  if (!countdownEl) {
+    countdownEl = document.createElement('span')
+    countdownEl.className = 'spotify-countdown'
+    btn.appendChild(countdownEl)
+  }
+  countdownEl.textContent = formatRemaining(remaining)
+}
+
+// Tick all countdowns every second
+setInterval(() => {
+  document.querySelectorAll('.spotify-toggle.active').forEach(btn => {
+    updateCountdownText(btn)
+  })
+}, 1000)
 
 async function syncHealerStatus() {
   try {
@@ -411,6 +573,10 @@ async function syncHealerStatus() {
       const el = document.querySelector("#dev-" + serial + " .spotify-toggle")
       if (el && state.watching) {
         el.classList.add("active")
+        if (state.expiresAt) {
+          el.dataset.expiresAt = state.expiresAt
+        }
+        updateCountdownText(el)
       }
     }
   } catch (err) {
@@ -473,6 +639,8 @@ window.addEventListener("beforeunload", () => {
     }
   })
 })
+
+document.addEventListener('click', () => closePickers())
 
 init()
 </script>

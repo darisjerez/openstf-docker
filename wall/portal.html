@@ -58,11 +58,84 @@
       display: block;
     }
 
+    .tab.hidden-tab {
+      display: none;
+    }
+
+    .settings-btn {
+      margin-left: auto;
+      padding: 10px 14px;
+      color: #888;
+      font-size: 16px;
+      cursor: pointer;
+      position: relative;
+      user-select: none;
+    }
+
+    .settings-btn:hover {
+      color: #ccc;
+    }
+
+    .settings-dropdown {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background: #222;
+      border: 1px solid #555;
+      border-radius: 6px;
+      min-width: 160px;
+      z-index: 100;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      display: none;
+      padding: 6px 0;
+    }
+
+    .settings-dropdown.open {
+      display: block;
+    }
+
+    .settings-dropdown label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      color: #ccc;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .settings-dropdown label:hover {
+      background: #333;
+    }
+
+    .settings-dropdown input[type="checkbox"] {
+      accent-color: #0f0;
+    }
+
     @media (max-width: 600px) {
       .tab {
         flex: 1;
         text-align: center;
         padding: 12px 8px;
+      }
+
+      .settings-btn {
+        flex: none;
+      }
+
+      .settings-dropdown {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        top: auto;
+        border-radius: 12px 12px 0 0;
+        min-width: auto;
+      }
+
+      .settings-dropdown label {
+        padding: 14px 20px;
+        font-size: 16px;
       }
     }
   </style>
@@ -73,6 +146,7 @@
   <div class="tab active" data-target="wall">Wall</div>
   <div class="tab" data-target="stf">STF Panel</div>
   <div class="tab" data-target="grafana">Grafana</div>
+  <div class="settings-btn" id="settings-btn">&#9881;<div class="settings-dropdown" id="settings-dropdown"></div></div>
 </div>
 
 <div class="frame-container">
@@ -96,34 +170,119 @@ const sources = {
 
 const loaded = { wall: true };
 
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
+const allTabs = ['wall', 'stf', 'grafana'];
+const TAB_VIS_KEY = 'portal_visible_tabs';
+
+function getVisibleTabs() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(TAB_VIS_KEY));
+    if (Array.isArray(stored) && stored.length > 0) return stored;
+  } catch (e) {}
+  return [...allTabs];
+}
+
+function saveVisibleTabs(tabs) {
+  localStorage.setItem(TAB_VIS_KEY, JSON.stringify(tabs));
+}
+
+function applyTabVisibility() {
+  const visible = getVisibleTabs();
+  document.querySelectorAll('.tab[data-target]').forEach(tab => {
     const target = tab.dataset.target;
-
-    // Update active tab
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-
-    // Update active iframe
-    document.querySelectorAll('.frame-container iframe').forEach(f => f.classList.remove('active'));
-    const frame = document.getElementById('frame-' + target);
-    frame.classList.add('active');
-
-    // Lazy-load: set src on first click
-    if (!loaded[target] && target !== 'wall') {
-      frame.src = sources[target];
-      loaded[target] = true;
-    }
-
-    // Kill wall iframe when switching away, reload when switching back
-    const wallFrame = document.getElementById('frame-wall');
-    if (target === 'wall') {
-      wallFrame.src = '/wall';
+    if (visible.includes(target)) {
+      tab.classList.remove('hidden-tab');
     } else {
-      wallFrame.src = 'about:blank';
+      tab.classList.add('hidden-tab');
     }
   });
+
+  // If active tab is now hidden, switch to first visible
+  const activeTab = document.querySelector('.tab.active');
+  if (activeTab && activeTab.classList.contains('hidden-tab')) {
+    const firstVisible = document.querySelector('.tab[data-target]:not(.hidden-tab)');
+    if (firstVisible) firstVisible.click();
+  }
+}
+
+function buildSettingsDropdown() {
+  const dropdown = document.getElementById('settings-dropdown');
+  dropdown.innerHTML = '';
+  const visible = getVisibleTabs();
+
+  allTabs.forEach(tabId => {
+    const label = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = visible.includes(tabId);
+    // Disable if this is the last visible tab
+    if (visible.length === 1 && visible[0] === tabId) {
+      cb.disabled = true;
+    }
+    const name = document.querySelector(`.tab[data-target="${tabId}"]`).textContent;
+    cb.addEventListener('change', () => {
+      let tabs = getVisibleTabs();
+      if (cb.checked) {
+        if (!tabs.includes(tabId)) tabs.push(tabId);
+      } else {
+        tabs = tabs.filter(t => t !== tabId);
+      }
+      saveVisibleTabs(tabs);
+      applyTabVisibility();
+      buildSettingsDropdown(); // Rebuild to update disabled state
+    });
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(name));
+    dropdown.appendChild(label);
+  });
+}
+
+// Gear icon toggle
+document.getElementById('settings-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const dropdown = document.getElementById('settings-dropdown');
+  const isOpen = dropdown.classList.contains('open');
+  dropdown.classList.toggle('open');
+  if (!isOpen) buildSettingsDropdown();
 });
+
+// Close dropdown on outside click
+document.addEventListener('click', () => {
+  document.getElementById('settings-dropdown').classList.remove('open');
+});
+
+function switchTab(target) {
+  // Update active tab
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab[data-target="${target}"]`).classList.add('active');
+
+  // Update active iframe
+  document.querySelectorAll('.frame-container iframe').forEach(f => f.classList.remove('active'));
+  const frame = document.getElementById('frame-' + target);
+  frame.classList.add('active');
+
+  // Lazy-load: set src on first click
+  if (!loaded[target] && target !== 'wall') {
+    frame.src = sources[target];
+    loaded[target] = true;
+  }
+
+  // Kill wall iframe when switching away, reload when switching back
+  const wallFrame = document.getElementById('frame-wall');
+  if (target === 'wall') {
+    wallFrame.src = '/wall';
+  } else {
+    wallFrame.src = 'about:blank';
+  }
+}
+
+document.querySelectorAll('.tab[data-target]').forEach(tab => {
+  tab.addEventListener('click', () => {
+    switchTab(tab.dataset.target);
+  });
+});
+
+// Apply tab visibility on load
+applyTabVisibility();
 </script>
 
 </body>

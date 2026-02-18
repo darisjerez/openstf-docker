@@ -128,7 +128,7 @@ function extractSpotifySession(dump) {
   return inSpotify ? section.join('\n') : null
 }
 
-function startWatching(serial) {
+function startWatching(serial, duration) {
   if (devices[serial] && devices[serial].watching) return devices[serial]
 
   const state = {
@@ -142,8 +142,19 @@ function startWatching(serial) {
     model: '',
     lastHealAction: null,
     lastError: null,
+    duration: duration || 0,
+    expiresAt: duration > 0 ? Date.now() + duration : 0,
     _healing: false,
-    _timer: null
+    _timer: null,
+    _durationTimer: null
+  }
+
+  // Auto-stop after duration
+  if (duration > 0) {
+    state._durationTimer = setTimeout(() => {
+      console.log(`[${serial}] duration expired — stopping`)
+      stopWatching(serial)
+    }, duration)
   }
 
   // Stagger first cycle with a random delay so devices don't all heal at once
@@ -153,7 +164,7 @@ function startWatching(serial) {
     state._timer = setInterval(() => healCycle(serial), HEAL_INTERVAL)
   }, stagger)
   devices[serial] = state
-  console.log(`[${serial}] watcher started (first cycle in ${Math.round(stagger / 1000)}s)`)
+  console.log(`[${serial}] watcher started (first cycle in ${Math.round(stagger / 1000)}s, duration: ${duration ? duration / 1000 + 's' : 'infinite'})`)
   return state
 }
 
@@ -163,6 +174,7 @@ function stopWatching(serial) {
   state.watching = false
   if (state._staggerTimer) clearTimeout(state._staggerTimer)
   if (state._timer) clearInterval(state._timer)
+  if (state._durationTimer) clearTimeout(state._durationTimer)
   delete devices[serial]
   console.log(`[${serial}] watcher stopped`)
   return true
@@ -180,9 +192,13 @@ function publicState(state) {
     batteryLevel: state.batteryLevel,
     model: state.model,
     lastHealAction: state.lastHealAction,
-    lastError: state.lastError
+    lastError: state.lastError,
+    duration: state.duration,
+    expiresAt: state.expiresAt
   }
 }
+
+app.use(express.json())
 
 // CORS middleware
 app.use((req, res, next) => {
@@ -204,7 +220,8 @@ app.get('/api/status', (req, res) => {
 
 // POST /api/watch/:serial — start watching
 app.post('/api/watch/:serial', (req, res) => {
-  const state = startWatching(req.params.serial)
+  const duration = (req.body && req.body.duration) || 0
+  const state = startWatching(req.params.serial, duration)
   res.json(publicState(state))
 })
 
