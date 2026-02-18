@@ -117,10 +117,7 @@
     }
 
     .duration-picker {
-      position: absolute;
-      bottom: 100%;
-      right: 0;
-      margin-bottom: 4px;
+      position: fixed;
       background: #222;
       border: 1px solid #555;
       border-radius: 6px;
@@ -516,7 +513,13 @@ function showDurationPicker(serial, btn, wrap) {
     picker.appendChild(item)
   })
 
-  wrap.appendChild(picker)
+  const rect = btn.getBoundingClientRect()
+  const isMobile = window.innerWidth <= 600
+  if (!isMobile) {
+    picker.style.bottom = (window.innerHeight - rect.top + 4) + 'px'
+    picker.style.left = rect.left + 'px'
+  }
+  document.body.appendChild(picker)
 }
 
 async function toggleSpotify(serial, btn, wrap) {
