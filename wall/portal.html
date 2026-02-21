@@ -3,6 +3,12 @@
 <head>
   <title>Device Farm</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Device Farm">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -283,6 +289,11 @@ document.querySelectorAll('.tab[data-target]').forEach(tab => {
 
 // Apply tab visibility on load
 applyTabVisibility();
+
+// Register service worker for PWA installability
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/service-worker.js');
+}
 </script>
 
 </body>

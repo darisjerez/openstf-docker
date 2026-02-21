@@ -41,6 +41,9 @@ services:
       - ./wall/grid.html:/usr/share/nginx/html/wall/index.html
       - ./wall/portal.html:/usr/share/nginx/html/portal.html
       - ./wall/nginx.conf:/etc/nginx/nginx.conf
+      - ./wall/manifest.json:/usr/share/nginx/html/manifest.json
+      - ./wall/service-worker.js:/usr/share/nginx/html/service-worker.js
+      - ./wall/icons:/usr/share/nginx/html/icons
     restart: unless-stopped
 
   stf-exporter:
