@@ -68,8 +68,25 @@
       display: none;
     }
 
-    .settings-btn {
+    .refresh-btn {
       margin-left: auto;
+      padding: 10px 14px;
+      color: #888;
+      font-size: 16px;
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.2s;
+    }
+
+    .refresh-btn:hover {
+      color: #ccc;
+    }
+
+    .refresh-btn:active {
+      color: #0f0;
+    }
+
+    .settings-btn {
       padding: 10px 14px;
       color: #888;
       font-size: 16px;
@@ -152,6 +169,7 @@
   <div class="tab active" data-target="wall">Wall</div>
   <div class="tab" data-target="stf">STF Panel</div>
   <div class="tab" data-target="grafana">Grafana</div>
+  <div class="refresh-btn" id="refresh-btn" title="Reload current tab">&#8635;</div>
   <div class="settings-btn" id="settings-btn">&#9881;<div class="settings-dropdown" id="settings-dropdown"></div></div>
 </div>
 
@@ -241,6 +259,18 @@ function buildSettingsDropdown() {
     dropdown.appendChild(label);
   });
 }
+
+// Refresh button — reload active iframe
+document.getElementById('refresh-btn').addEventListener('click', () => {
+  const activeTab = document.querySelector('.tab.active');
+  if (!activeTab) return;
+  const target = activeTab.dataset.target;
+  const frame = document.getElementById('frame-' + target);
+  if (frame) {
+    frame.src = sources[target];
+    loaded[target] = true;
+  }
+});
 
 // Gear icon toggle
 document.getElementById('settings-btn').addEventListener('click', (e) => {
