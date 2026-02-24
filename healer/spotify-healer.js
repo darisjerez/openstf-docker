@@ -2,7 +2,8 @@ const express = require('express')
 const { execFile } = require('child_process')
 const app = express()
 const PORT = 9106
-const HEAL_INTERVAL = 300000
+const HEAL_INTERVAL_MIN = 240000  // 4 minutes
+const HEAL_INTERVAL_MAX = 360000  // 6 minutes
 const ADB_TIMEOUT = 10000
 
 // State per device: { serial: { watching, spotifyRunning, spotifyPlaying, healCount, healsLaunched, healsPlaySent, batteryLevel, lastHealAction, lastError, _timer, _healing } }
@@ -58,11 +59,7 @@ async function healCycle(serial) {
       await adb(serial, ['shell', 'am', 'start', '-n', 'com.spotify.music/.MainActivity'])
       await new Promise(r => setTimeout(r, 3000))
       // Send play command after launch
-      try {
-        await adb(serial, ['shell', 'media', 'dispatch', 'play'])
-      } catch (e) {
-        await adb(serial, ['shell', 'input', 'keyevent', '126'])
-      }
+      await adb(serial, ['shell', 'media', 'dispatch', 'play'])
       state.spotifyPlaying = true // optimistic
     } else {
       // Step 2: Is Spotify playing?
@@ -85,12 +82,7 @@ async function healCycle(serial) {
         state.healCount++
         state.healsPlaySent++
         console.log(`[${serial}] Spotify paused — sending play`)
-        try {
-          await adb(serial, ['shell', 'media', 'dispatch', 'play'])
-        } catch (e) {
-          // Fallback to keyevent
-          await adb(serial, ['shell', 'input', 'keyevent', '126'])
-        }
+        await adb(serial, ['shell', 'media', 'dispatch', 'play'])
         state.spotifyPlaying = true // optimistic
       }
     }
@@ -157,14 +149,22 @@ function startWatching(serial, duration) {
     }, duration)
   }
 
+  // Schedule heal cycles with randomized intervals (4–6 min) to avoid detectable patterns
+  function scheduleNext() {
+    const jitter = HEAL_INTERVAL_MIN + Math.floor(Math.random() * (HEAL_INTERVAL_MAX - HEAL_INTERVAL_MIN))
+    state._timer = setTimeout(async () => {
+      await healCycle(serial)
+      if (state.watching) scheduleNext()
+    }, jitter)
+  }
   // Stagger first cycle with a random delay so devices don't all heal at once
-  const stagger = Math.floor(Math.random() * HEAL_INTERVAL)
+  const stagger = Math.floor(Math.random() * HEAL_INTERVAL_MAX)
   state._staggerTimer = setTimeout(() => {
     healCycle(serial)
-    state._timer = setInterval(() => healCycle(serial), HEAL_INTERVAL)
+    scheduleNext()
   }, stagger)
   devices[serial] = state
-  console.log(`[${serial}] watcher started (first cycle in ${Math.round(stagger / 1000)}s, duration: ${duration ? duration / 1000 + 's' : 'infinite'})`)
+  console.log(`[${serial}] watcher started (first cycle in ${Math.round(stagger / 1000)}s, interval: ${HEAL_INTERVAL_MIN/1000}–${HEAL_INTERVAL_MAX/1000}s, duration: ${duration ? duration / 1000 + 's' : 'infinite'})`)
   return state
 }
 
@@ -173,7 +173,7 @@ function stopWatching(serial) {
   if (!state) return false
   state.watching = false
   if (state._staggerTimer) clearTimeout(state._staggerTimer)
-  if (state._timer) clearInterval(state._timer)
+  if (state._timer) clearTimeout(state._timer)
   if (state._durationTimer) clearTimeout(state._durationTimer)
   delete devices[serial]
   console.log(`[${serial}] watcher stopped`)
