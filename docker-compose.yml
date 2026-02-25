@@ -72,6 +72,18 @@ services:
       - "9106:9106"
     restart: unless-stopped
 
+  device-monitor:
+    image: node:18-alpine
+    container_name: device-monitor
+    working_dir: /app
+    volumes:
+      - ./monitor:/app
+    command: sh -c "apk add --no-cache android-tools && npm install && node device-monitor.js"
+    network_mode: host
+    ports:
+      - "9107:9107"
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus
     container_name: prometheus

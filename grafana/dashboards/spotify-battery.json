@@ -17,7 +17,7 @@
       "datasource": { "type": "prometheus", "uid": "dfcz47nsq0gzkd" },
       "targets": [
         {
-          "expr": "spotify_healer_battery_level",
+          "expr": "device_battery_level",
           "legendFormat": "{{ model }} ({{ serial }})",
           "refId": "A"
         }
@@ -57,7 +57,7 @@
       "datasource": { "type": "prometheus", "uid": "dfcz47nsq0gzkd" },
       "targets": [
         {
-          "expr": "spotify_healer_battery_level",
+          "expr": "device_battery_level",
           "legendFormat": "{{ model }} ({{ serial }})",
           "refId": "A"
         }
@@ -151,7 +151,7 @@
           "format": "table"
         },
         {
-          "expr": "spotify_healer_battery_level",
+          "expr": "device_battery_level",
           "legendFormat": "",
           "refId": "C",
           "instant": true,
