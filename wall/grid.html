@@ -63,27 +63,12 @@
     .status.connecting { color: #ff0; }
     .status.live { color: #0f0; }
     .status.error { color: #f00; }
-    .status.paused { color: #888; }
 
     .controls {
       display: flex;
       justify-content: flex-end;
       padding: 4px;
       background: #1a1a1a;
-    }
-
-    .controls button {
-      background: #333;
-      color: #ccc;
-      border: 1px solid #555;
-      border-radius: 4px;
-      padding: 4px 14px;
-      font-size: 12px;
-      cursor: pointer;
-    }
-
-    .controls button:hover {
-      background: #444;
     }
 
     .spotify-toggle {
@@ -168,7 +153,7 @@
         grid-template-columns: repeat(3, 1fr);
       }
 
-      .controls button, .spotify-toggle {
+      .spotify-toggle {
         padding: 8px 16px;
       }
 
@@ -302,9 +287,6 @@ function createDeviceEl(serial, model) {
 
   const controls = document.createElement("div")
   controls.className = "controls"
-  const btn = document.createElement("button")
-  btn.innerText = "Stop"
-  controls.appendChild(btn)
 
   const spotifyWrap = document.createElement("span")
   spotifyWrap.style.position = "relative"
@@ -325,7 +307,7 @@ function createDeviceEl(serial, model) {
   container.appendChild(controls)
   document.getElementById("grid").appendChild(container)
 
-  return { canvas, status, btn, spotifyBtn }
+  return { canvas, status, spotifyBtn }
 }
 
 async function claimDevice(serial) {
@@ -372,7 +354,6 @@ function connectStream(wsUrl, el) {
   const proxiedUrl = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/screen/${parsed.port}`
 
   let ws = null
-  let stopped = false
 
   function start() {
     ws = new WebSocket(proxiedUrl)
@@ -428,25 +409,9 @@ function connectStream(wsUrl, el) {
     }
 
     ws.onclose = () => {
-      if (!stopped) {
-        el.status.className = "status error"
-        el.status.innerText = "reconnecting..."
-        setTimeout(start, 5000)
-      }
-    }
-  }
-
-  el.btn.onclick = () => {
-    if (stopped) {
-      stopped = false
-      el.btn.innerText = "Stop"
-      start()
-    } else {
-      stopped = true
-      el.btn.innerText = "Resume"
-      el.status.className = "status paused"
-      el.status.innerText = "paused"
-      if (ws) ws.close()
+      el.status.className = "status error"
+      el.status.innerText = "reconnecting..."
+      setTimeout(start, 5000)
     }
   }
 
