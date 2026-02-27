@@ -286,7 +286,18 @@ document.addEventListener('click', () => {
   document.getElementById('settings-dropdown').classList.remove('open');
 });
 
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+  || navigator.standalone === true;
+
 function switchTab(target) {
+  // In standalone PWA mode, open STF in the system browser — STF device
+  // control needs direct WebSocket connections to ports 7400-7500 which
+  // are blocked in standalone PWA iframes.
+  if (isStandalone && target === 'stf') {
+    window.open(sources[target], '_blank');
+    return;
+  }
+
   // Update active tab
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelector(`.tab[data-target="${target}"]`).classList.add('active');
