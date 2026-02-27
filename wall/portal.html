@@ -294,7 +294,14 @@ function switchTab(target) {
   // control needs direct WebSocket connections to ports 7400-7500 which
   // are blocked in standalone PWA iframes.
   if (isStandalone && target === 'stf') {
-    window.open(sources[target], '_blank');
+    const fullUrl = window.location.origin + sources[target];
+    // iOS PWAs open Safari by default — use Chrome's URL scheme instead
+    if (/iP(hone|ad|od)/.test(navigator.userAgent)) {
+      const chromeUrl = fullUrl.replace(/^https:\/\//, 'googlechromes://').replace(/^http:\/\//, 'googlechrome://');
+      window.location.href = chromeUrl;
+    } else {
+      window.open(fullUrl, '_blank');
+    }
     return;
   }
 
