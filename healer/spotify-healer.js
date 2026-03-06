@@ -50,7 +50,7 @@ async function healCycle(serial) {
       await adb(serial, ['shell', 'am', 'start', '-n', 'com.spotify.music/.MainActivity'])
       await new Promise(r => setTimeout(r, 3000))
       // Send play command after launch
-      await adb(serial, ['shell', 'media', 'dispatch', 'play'])
+      await adb(serial, ['shell', 'input', 'keyevent', '126'])
       state.spotifyPlaying = true // optimistic
     } else {
       // Step 2: Is Spotify playing?
@@ -73,7 +73,7 @@ async function healCycle(serial) {
         state.healCount++
         state.healsPlaySent++
         console.log(`[${serial}] Spotify paused — sending play`)
-        await adb(serial, ['shell', 'media', 'dispatch', 'play'])
+        await adb(serial, ['shell', 'input', 'keyevent', '126'])
         state.spotifyPlaying = true // optimistic
       }
     }
