@@ -59,6 +59,8 @@ async function healCycle(serial) {
         mediaDump = await adb(serial, ['shell', 'dumpsys', 'media_session'])
       } catch (e) {
         state.lastError = 'dumpsys failed: ' + e.message
+        state.errorsTotal++
+        state.errorsByType.dumpsys_parse++
         state._healing = false
         return
       }
@@ -79,8 +81,15 @@ async function healCycle(serial) {
     }
 
     state.lastError = null
+    state.lastSuccessTimestamp = Date.now()
   } catch (err) {
     state.lastError = err.message
+    state.errorsTotal++
+    if (err.killed || (err.message && err.message.includes('TIMEOUT'))) {
+      state.errorsByType.adb_timeout++
+    } else {
+      state.errorsByType.adb_failed++
+    }
     console.error(`[${serial}] heal error:`, err.message)
   } finally {
     state._healing = false
@@ -124,6 +133,9 @@ function startWatching(serial, duration) {
     model: '',
     lastHealAction: null,
     lastError: null,
+    errorsTotal: 0,
+    errorsByType: { adb_timeout: 0, adb_failed: 0, dumpsys_parse: 0 },
+    lastSuccessTimestamp: 0,
     duration: duration || 0,
     expiresAt: duration > 0 ? Date.now() + duration : 0,
     _healing: false,
@@ -182,6 +194,8 @@ function publicState(state) {
     model: state.model,
     lastHealAction: state.lastHealAction,
     lastError: state.lastError,
+    errorsTotal: state.errorsTotal,
+    lastSuccessTimestamp: state.lastSuccessTimestamp,
     duration: state.duration,
     expiresAt: state.expiresAt
   }
@@ -237,7 +251,11 @@ app.get('/metrics', (req, res) => {
     '# HELP spotify_healer_heal_total Number of heal actions performed',
     '# TYPE spotify_healer_heal_total counter',
     '# HELP spotify_healer_heals_total Number of heal actions by type',
-    '# TYPE spotify_healer_heals_total counter'
+    '# TYPE spotify_healer_heals_total counter',
+    '# HELP spotify_healer_errors_total Cumulative heal errors by type',
+    '# TYPE spotify_healer_errors_total counter',
+    '# HELP spotify_healer_last_success_timestamp Unix timestamp of last successful heal cycle',
+    '# TYPE spotify_healer_last_success_timestamp gauge'
   ]
 
   for (const [serial, state] of Object.entries(devices)) {
@@ -248,6 +266,12 @@ app.get('/metrics', (req, res) => {
     lines.push(`spotify_healer_heal_total{${labels}} ${state.healCount}`)
     lines.push(`spotify_healer_heals_total{${labels},action="launched"} ${state.healsLaunched}`)
     lines.push(`spotify_healer_heals_total{${labels},action="play_sent"} ${state.healsPlaySent}`)
+    lines.push(`spotify_healer_errors_total{${labels},type="adb_timeout"} ${state.errorsByType.adb_timeout}`)
+    lines.push(`spotify_healer_errors_total{${labels},type="adb_failed"} ${state.errorsByType.adb_failed}`)
+    lines.push(`spotify_healer_errors_total{${labels},type="dumpsys_parse"} ${state.errorsByType.dumpsys_parse}`)
+    if (state.lastSuccessTimestamp > 0) {
+      lines.push(`spotify_healer_last_success_timestamp{${labels}} ${Math.floor(state.lastSuccessTimestamp / 1000)}`)
+    }
   }
 
   res.set('Content-Type', 'text/plain; version=0.0.4')

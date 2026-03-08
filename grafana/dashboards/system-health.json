@@ -1,0 +1,241 @@
+{
+  "uid": "system-health",
+  "title": "System Health",
+  "tags": ["reliability", "monitoring", "health"],
+  "timezone": "browser",
+  "editable": true,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Scrape Targets Status",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 5 },
+      "datasource": { "uid": "dfcz47nsq0gzkd" },
+      "targets": [
+        {
+          "expr": "up",
+          "instant": true,
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [
+              { "id": "custom.displayMode", "value": "color-background" },
+              { "id": "displayName", "value": "Status" }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true }, "renameByName": { "instance": "Instance", "job": "Service" } } }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Device Online Status",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 5, "w": 12, "h": 6 },
+      "datasource": { "uid": "dfcz47nsq0gzkd" },
+      "targets": [
+        {
+          "expr": "device_online",
+          "legendFormat": "{{ model }} ({{ serial }})",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "OFFLINE", "color": "red" }, "1": { "text": "ONLINE", "color": "green" } } }
+          ],
+          "color": { "mode": "fixed" }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Device Offline Streak (consecutive polls)",
+      "type": "bargauge",
+      "gridPos": { "x": 12, "y": 5, "w": 12, "h": 6 },
+      "datasource": { "uid": "dfcz47nsq0gzkd" },
+      "targets": [
+        {
+          "expr": "device_offline_streak > 0",
+          "legendFormat": "{{ model }} ({{ serial }})",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "continuous-reds" },
+          "thresholds": {
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 1, "color": "yellow" },
+              { "value": 3, "color": "red" }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true
+      }
+    },
+    {
+      "id": 4,
+      "title": "Healer Errors Over Time",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 11, "w": 12, "h": 8 },
+      "datasource": { "uid": "dfcz47nsq0gzkd" },
+      "targets": [
+        {
+          "expr": "increase(spotify_healer_errors_total[5m])",
+          "legendFormat": "{{ model }} ({{ serial }}) — {{ type }}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": { "mode": "normal" }
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Device Monitor Errors Over Time",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 11, "w": 12, "h": 8 },
+      "datasource": { "uid": "dfcz47nsq0gzkd" },
+      "targets": [
+        {
+          "expr": "increase(device_errors_total[5m])",
+          "legendFormat": "{{ model }} ({{ serial }}) — {{ type }}",
+          "refId": "A"
+        },
+        {
+          "expr": "increase(device_monitor_poll_errors_total[5m])",
+          "legendFormat": "ADB poll failures",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": { "mode": "normal" }
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "STF Exporter Scrape Errors",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 19, "w": 6, "h": 4 },
+      "datasource": { "uid": "dfcz47nsq0gzkd" },
+      "targets": [
+        {
+          "expr": "stf_exporter_scrape_errors_total",
+          "legendFormat": "Errors",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 1, "color": "yellow" },
+              { "value": 5, "color": "red" }
+            ]
+          }
+        }
+      },
+      "options": { "colorMode": "background" }
+    },
+    {
+      "id": 7,
+      "title": "Reconnect Attempts",
+      "type": "timeseries",
+      "gridPos": { "x": 6, "y": 19, "w": 18, "h": 8 },
+      "datasource": { "uid": "dfcz47nsq0gzkd" },
+      "targets": [
+        {
+          "expr": "device_reconnect_attempts > 0",
+          "legendFormat": "{{ model }} ({{ serial }})",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "points",
+            "pointSize": 8
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Time Since Last Successful Heal",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 27, "w": 24, "h": 5 },
+      "datasource": { "uid": "dfcz47nsq0gzkd" },
+      "targets": [
+        {
+          "expr": "time() - spotify_healer_last_success_timestamp",
+          "legendFormat": "{{ model }} ({{ serial }})",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 600, "color": "yellow" },
+              { "value": 1800, "color": "red" }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "textMode": "value_and_name"
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}

@@ -2,6 +2,8 @@ const express = require('express')
 const r = require('rethinkdb')
 
 const app = express()
+let scrapeErrors = 0
+let lastSuccessTimestamp = 0
 
 async function collectMetrics() {
   let conn
@@ -10,7 +12,8 @@ async function collectMetrics() {
     conn = await r.connect({
       host: '127.0.0.1',
       port: 28015,
-      db: 'stf'
+      db: 'stf',
+      timeout: 10
     })
 
     const cursor = await r.table('devices').run(conn)
@@ -51,11 +54,34 @@ async function collectMetrics() {
       output += `stf_device_online{serial="${serial}",model="${model}"} ${isOnline}\n`
     })
 
+    // Exporter health
+    output += `# HELP stf_exporter_scrape_errors_total Number of failed scrapes\n`
+    output += `# TYPE stf_exporter_scrape_errors_total counter\n`
+    output += `stf_exporter_scrape_errors_total ${scrapeErrors}\n`
+
+    output += `# HELP stf_exporter_last_success_timestamp Unix timestamp of last successful scrape\n`
+    output += `# TYPE stf_exporter_last_success_timestamp gauge\n`
+
+    lastSuccessTimestamp = Math.floor(Date.now() / 1000)
+    output += `stf_exporter_last_success_timestamp ${lastSuccessTimestamp}\n`
+
     return output
 
   } catch (err) {
-    console.error('Exporter error:', err)
-    return ''
+    scrapeErrors++
+    console.error('Exporter error:', err.message)
+
+    // Return error metrics even on failure so Prometheus sees the counter
+    let output = ''
+    output += `# HELP stf_exporter_scrape_errors_total Number of failed scrapes\n`
+    output += `# TYPE stf_exporter_scrape_errors_total counter\n`
+    output += `stf_exporter_scrape_errors_total ${scrapeErrors}\n`
+    if (lastSuccessTimestamp > 0) {
+      output += `# HELP stf_exporter_last_success_timestamp Unix timestamp of last successful scrape\n`
+      output += `# TYPE stf_exporter_last_success_timestamp gauge\n`
+      output += `stf_exporter_last_success_timestamp ${lastSuccessTimestamp}\n`
+    }
+    return output
   } finally {
     if (conn) await conn.close()
   }
@@ -63,7 +89,7 @@ async function collectMetrics() {
 
 app.get('/metrics', async (_req, res) => {
   const metrics = await collectMetrics()
-  res.set('Content-Type', 'text/plain')
+  res.set('Content-Type', 'text/plain; version=0.0.4')
   res.send(metrics)
 })
 
