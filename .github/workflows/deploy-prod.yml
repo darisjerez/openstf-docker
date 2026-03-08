@@ -1,0 +1,48 @@
+name: Deploy to Prod
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: self-hosted
+    environment: production
+    env:
+      COMPOSE_PROJECT_NAME: stf-prod
+      PUBLIC_IP: ${{ secrets.PUBLIC_IP }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create env file
+        run: |
+          cat envs/.env.prod | envsubst > .env.deploy
+          echo "PUBLIC_IP=${PUBLIC_IP}" >> .env.deploy
+
+      - name: Stop existing prod containers
+        run: |
+          docker compose --env-file .env.deploy -p stf-prod down --remove-orphans || true
+
+      - name: Start prod environment
+        run: |
+          docker compose --env-file .env.deploy -p stf-prod up -d
+
+      - name: Wait for services to start
+        run: sleep 20
+
+      - name: Run smoke tests
+        run: |
+          chmod +x ./scripts/smoke-test.sh
+          ./scripts/smoke-test.sh prod
+
+      - name: Show container status
+        if: always()
+        run: docker compose -p stf-prod ps
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose -p stf-prod logs --tail=50

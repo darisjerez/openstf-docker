@@ -2,6 +2,8 @@ const express = require('express')
 const r = require('rethinkdb')
 
 const app = express()
+const PORT = parseInt(process.env.PORT, 10) || 9105
+const RETHINKDB_PORT = parseInt(process.env.RETHINKDB_PORT, 10) || 28015
 
 async function collectMetrics() {
   let conn
@@ -9,7 +11,7 @@ async function collectMetrics() {
   try {
     conn = await r.connect({
       host: '127.0.0.1',
-      port: 28015,
+      port: RETHINKDB_PORT,
       db: 'stf'
     })
 
@@ -67,6 +69,6 @@ app.get('/metrics', async (_req, res) => {
   res.send(metrics)
 })
 
-app.listen(9105, () => {
-  console.log('STF exporter running on :9105')
+app.listen(PORT, () => {
+  console.log(`STF exporter running on :${PORT}`)
 })

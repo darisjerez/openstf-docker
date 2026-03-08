@@ -1,0 +1,53 @@
+name: Deploy to Dev
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - 'dev'
+  pull_request:
+    branches:
+      - main
+      - dev
+
+jobs:
+  deploy-dev:
+    name: Deploy to Dev Environment
+    runs-on: self-hosted
+    environment: dev
+    env:
+      COMPOSE_PROJECT_NAME: stf-dev
+      PUBLIC_IP: ${{ secrets.PUBLIC_IP }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create env file
+        run: |
+          cat envs/.env.dev | envsubst > .env.deploy
+          echo "PUBLIC_IP=${PUBLIC_IP}" >> .env.deploy
+
+      - name: Stop existing dev containers
+        run: |
+          docker compose --env-file .env.deploy -p stf-dev down --remove-orphans || true
+
+      - name: Start dev environment
+        run: |
+          docker compose --env-file .env.deploy -p stf-dev up -d
+
+      - name: Wait for services to start
+        run: sleep 15
+
+      - name: Run smoke tests
+        run: |
+          chmod +x ./scripts/smoke-test.sh
+          ./scripts/smoke-test.sh dev
+
+      - name: Show container status
+        if: always()
+        run: docker compose -p stf-dev ps
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose -p stf-dev logs --tail=50

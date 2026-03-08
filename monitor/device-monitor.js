@@ -1,7 +1,7 @@
 const express = require('express')
 const { execFile } = require('child_process')
 const app = express()
-const PORT = 9107
+const PORT = parseInt(process.env.PORT, 10) || 9107
 const POLL_INTERVAL = 60000 // 60s
 const ADB_TIMEOUT = 10000
 

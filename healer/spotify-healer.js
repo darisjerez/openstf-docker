@@ -1,7 +1,7 @@
 const express = require('express')
 const { execFile } = require('child_process')
 const app = express()
-const PORT = 9106
+const PORT = parseInt(process.env.PORT, 10) || 9106
 const HEAL_INTERVAL_MIN = 240000  // 4 minutes
 const HEAL_INTERVAL_MAX = 360000  // 6 minutes
 const ADB_TIMEOUT = 10000

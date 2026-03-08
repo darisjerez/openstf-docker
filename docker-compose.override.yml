@@ -1,0 +1,71 @@
+# Environment-aware overrides — loaded automatically by docker compose.
+# Usage:
+#   docker compose --env-file envs/.env.prod -p stf-prod up -d
+#   docker compose --env-file envs/.env.dev  -p stf-dev  up -d
+
+services:
+  rethinkdb:
+    container_name: ${COMPOSE_PROJECT_NAME}-rethinkdb
+    command: >
+      rethinkdb
+      --http-port ${RETHINKDB_ADMIN_PORT}
+      --driver-port ${RETHINKDB_DRIVER_PORT}
+      --bind all
+
+  stf:
+    container_name: ${COMPOSE_PROJECT_NAME}-stf
+    environment:
+      - RETHINKDB_PORT_28015_TCP=tcp://127.0.0.1:${RETHINKDB_DRIVER_PORT}
+    command: >
+      stf local
+      --public-ip ${PUBLIC_IP}
+      --adb-host 127.0.0.1
+      --adb-port 5037
+      --allow-remote
+      --group-timeout 2000000
+      --no-screen-reset
+      --no-cleanup
+      --lock-rotation true
+      --mute-master always
+      --port ${STF_PORT}
+      --websocket-port ${STF_WS_PORT}
+
+  nginx:
+    container_name: ${COMPOSE_PROJECT_NAME}-nginx
+    ports:
+      - "${NGINX_PORT}:80"
+    volumes:
+      - ./wall/grid.html:/usr/share/nginx/html/wall/index.html
+      - ./wall/portal.html:/usr/share/nginx/html/portal.html
+      - ./wall/nginx-${ENV}.conf:/etc/nginx/nginx.conf
+      - ./wall/manifest.json:/usr/share/nginx/html/manifest.json
+      - ./wall/service-worker.js:/usr/share/nginx/html/service-worker.js
+      - ./wall/icons:/usr/share/nginx/html/icons
+
+  stf-exporter:
+    container_name: ${COMPOSE_PROJECT_NAME}-exporter
+    environment:
+      - PORT=${EXPORTER_PORT}
+      - RETHINKDB_PORT=${RETHINKDB_DRIVER_PORT}
+
+  spotify-healer:
+    container_name: ${COMPOSE_PROJECT_NAME}-healer
+    environment:
+      - PORT=${HEALER_PORT}
+
+  device-monitor:
+    container_name: ${COMPOSE_PROJECT_NAME}-monitor
+    environment:
+      - PORT=${MONITOR_PORT}
+
+  prometheus:
+    container_name: ${COMPOSE_PROJECT_NAME}-prometheus
+    volumes:
+      - ./prometheus-${ENV}.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    container_name: ${COMPOSE_PROJECT_NAME}-grafana
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    environment:
+      - GF_SMTP_FROM_NAME=STF Monitor (${ENV})
