@@ -148,6 +148,124 @@
       color: #0f0;
     }
 
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .settings-btn {
+      background: none;
+      border: none;
+      color: #888;
+      font-size: 16px;
+      cursor: pointer;
+      padding: 2px 6px;
+    }
+
+    .settings-btn:hover { color: #ccc; }
+
+    .settings-dropdown {
+      position: fixed;
+      background: #222;
+      border: 1px solid #555;
+      border-radius: 6px;
+      z-index: 30;
+      min-width: 220px;
+      padding: 8px 0;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+
+    .settings-dropdown label, .settings-dropdown .setting-row {
+      display: block;
+      padding: 6px 14px;
+      color: #ccc;
+      font-size: 12px;
+    }
+
+    .settings-dropdown .setting-row input[type="text"] {
+      width: 100%;
+      padding: 4px 6px;
+      margin-top: 4px;
+      background: #333;
+      color: #fff;
+      border: 1px solid #555;
+      border-radius: 3px;
+      font-size: 12px;
+      box-sizing: border-box;
+    }
+
+    .settings-dropdown .setting-row .save-key-btn {
+      margin-top: 4px;
+      padding: 3px 10px;
+      font-size: 11px;
+      background: #444;
+      color: #ccc;
+      border: 1px solid #555;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+
+    .settings-dropdown .setting-row .save-key-btn:hover { background: #555; }
+
+    .toast-container {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: #16213e;
+      color: #ccc;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 10px 16px;
+      font-size: 13px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      animation: toast-in 0.3s ease-out;
+      pointer-events: auto;
+    }
+
+    .toast.fade-out {
+      animation: toast-out 0.3s ease-in forwards;
+    }
+
+    .toast.connected { border-left: 3px solid #0f0; }
+    .toast.disconnected { border-left: 3px solid #e94560; }
+
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes toast-out {
+      from { opacity: 1; transform: translateY(0); }
+      to { opacity: 0; transform: translateY(20px); }
+    }
+
+    .device.fade-in {
+      animation: device-fade-in 0.4s ease-out;
+    }
+
+    .device.fade-out {
+      animation: device-fade-out 0.4s ease-in forwards;
+    }
+
+    @keyframes device-fade-in {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes device-fade-out {
+      from { opacity: 1; transform: scale(1); }
+      to { opacity: 0; transform: scale(0.95); }
+    }
+
     @media (max-width: 600px) {
       .grid {
         grid-template-columns: repeat(3, 1fr);
@@ -198,10 +316,14 @@
 
 <div class="header">
   <span>Device Wall</span>
-  <span id="status-bar">loading...</span>
+  <div class="header-right">
+    <span id="status-bar">loading...</span>
+    <button class="settings-btn" id="settings-btn" title="Settings">&#9881;</button>
+  </div>
 </div>
 
 <div class="grid" id="grid"></div>
+<div class="toast-container" id="toast-container"></div>
 
 <div class="setup" id="setup" style="display:none">
   <p>Paste your STF access token below to enable the device wall.</p>
@@ -213,6 +335,38 @@
 <script>
 const TOKEN_KEY = "stf_wall_token"
 const DURATION_KEY = "stf_healer_duration"
+const HEALER_KEY = "stf_healer_api_key"
+const REFRESH_INTERVAL = 30000 // 30 seconds
+
+// Track known devices for refresh diffing: { serial: { model, el, streams } }
+const knownDevices = {}
+
+function getHealerApiKey() {
+  return localStorage.getItem(HEALER_KEY) || ''
+}
+
+function setHealerApiKey(key) {
+  localStorage.setItem(HEALER_KEY, key)
+}
+
+function healerHeaders() {
+  const h = { 'Content-Type': 'application/json' }
+  const key = getHealerApiKey()
+  if (key) h['X-API-Key'] = key
+  return h
+}
+
+function showToast(message, type) {
+  const container = document.getElementById('toast-container')
+  const toast = document.createElement('div')
+  toast.className = 'toast ' + (type || '')
+  toast.textContent = message
+  container.appendChild(toast)
+  setTimeout(() => {
+    toast.classList.add('fade-out')
+    toast.addEventListener('animationend', () => toast.remove())
+  }, 5000)
+}
 
 const DURATION_OPTIONS = [
   { label: '15 minutes', ms: 15 * 60 * 1000 },
@@ -306,6 +460,8 @@ function createDeviceEl(serial, model) {
   container.appendChild(status)
   container.appendChild(controls)
   document.getElementById("grid").appendChild(container)
+
+  knownDevices[serial] = { model, el: { canvas, status, spotifyBtn }, container }
 
   return { canvas, status, spotifyBtn }
 }
@@ -460,7 +616,7 @@ function showDurationPicker(serial, btn, wrap) {
       try {
         const res = await fetch("/healer/api/watch/" + serial, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: healerHeaders(),
           body: JSON.stringify({ duration: opt.ms })
         })
         const data = await res.json()
@@ -492,7 +648,7 @@ async function toggleSpotify(serial, btn, wrap) {
   try {
     if (isActive) {
       closePickers()
-      await fetch("/healer/api/watch/" + serial, { method: "DELETE" })
+      await fetch("/healer/api/watch/" + serial, { method: "DELETE", headers: healerHeaders() })
       btn.classList.remove("active", "healing")
       delete btn.dataset.expiresAt
       updateCountdownText(btn)
@@ -535,7 +691,7 @@ setInterval(() => {
 
 async function syncHealerStatus() {
   try {
-    const res = await fetch("/healer/api/status")
+    const res = await fetch("/healer/api/status", { headers: healerHeaders() })
     const data = await res.json()
     for (const [serial, state] of Object.entries(data)) {
       const el = document.querySelector("#dev-" + serial + " .spotify-toggle")
@@ -550,6 +706,100 @@ async function syncHealerStatus() {
   } catch (err) {
     console.warn("healer status unavailable:", err.message)
   }
+}
+
+// Settings dropdown
+document.getElementById('settings-btn').addEventListener('click', (e) => {
+  e.stopPropagation()
+  closePickers()
+  const existing = document.querySelector('.settings-dropdown')
+  if (existing) { existing.remove(); return }
+
+  const dropdown = document.createElement('div')
+  dropdown.className = 'settings-dropdown'
+
+  const row = document.createElement('div')
+  row.className = 'setting-row'
+  row.innerHTML = '<span>Healer API Key</span>'
+
+  const input = document.createElement('input')
+  input.type = 'text'
+  input.placeholder = 'Enter API key...'
+  input.value = getHealerApiKey()
+  input.onclick = (ev) => ev.stopPropagation()
+
+  const saveBtn = document.createElement('button')
+  saveBtn.className = 'save-key-btn'
+  saveBtn.textContent = 'Save'
+  saveBtn.onclick = (ev) => {
+    ev.stopPropagation()
+    setHealerApiKey(input.value.trim())
+    dropdown.remove()
+    showToast('Healer API key saved', '')
+  }
+
+  row.appendChild(input)
+  row.appendChild(saveBtn)
+  dropdown.appendChild(row)
+
+  const rect = e.target.getBoundingClientRect()
+  dropdown.style.top = (rect.bottom + 4) + 'px'
+  dropdown.style.right = (window.innerWidth - rect.right) + 'px'
+  document.body.appendChild(dropdown)
+})
+
+function removeDevice(serial) {
+  const info = knownDevices[serial]
+  if (!info) return
+  const container = info.container
+  container.classList.add('fade-out')
+  container.addEventListener('animationend', () => container.remove())
+  delete knownDevices[serial]
+}
+
+async function refreshDevices() {
+  const token = getToken()
+  if (!token) return
+
+  let data
+  try {
+    data = await api('GET', '/api/v1/devices')
+  } catch (err) {
+    return
+  }
+  if (!data.devices) return
+
+  const presentDevices = data.devices.filter(d => d.present)
+  const newSerials = new Set(presentDevices.map(d => d.serial))
+  const currentSerials = new Set(Object.keys(knownDevices))
+
+  // Detect removed devices
+  for (const serial of currentSerials) {
+    if (!newSerials.has(serial)) {
+      const info = knownDevices[serial]
+      const label = info.model ? `${info.model} (${serial})` : serial
+      showToast('Device disconnected: ' + label, 'disconnected')
+      removeDevice(serial)
+    }
+  }
+
+  // Detect added devices
+  for (const d of presentDevices) {
+    if (!currentSerials.has(d.serial)) {
+      const label = d.model ? `${d.model} (${d.serial})` : d.serial
+      showToast('Device connected: ' + label, 'connected')
+      await startDevice(d.serial, d.model)
+      const container = knownDevices[d.serial] && knownDevices[d.serial].container
+      if (container) container.classList.add('fade-in')
+    }
+  }
+
+  // Update device count
+  const count = Object.keys(knownDevices).length
+  setStatus(`<span class="count">${count}</span> devices streaming`)
+
+  // Re-sync healer status for any new devices
+  await syncHealerStatus()
 }
 
 async function init() {
@@ -608,9 +858,16 @@ window.addEventListener("beforeunload", () => {
   })
 })
 
-document.addEventListener('click', () => closePickers())
+document.addEventListener('click', () => {
+  closePickers()
+  const sd = document.querySelector('.settings-dropdown')
+  if (sd) sd.remove()
+})
 
 init()
+
+// Auto-refresh device list every 30 seconds
+setInterval(refreshDevices, REFRESH_INTERVAL)
 </script>
 
 </body>

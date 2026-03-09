@@ -1,7 +1,8 @@
 const express = require('express')
 const { execFile } = require('child_process')
 const app = express()
-const PORT = 9106
+const PORT = parseInt(process.env.PORT, 10) || 9106
+const API_KEY = process.env.HEALER_API_KEY || ''
 const HEAL_INTERVAL_MIN = 240000  // 4 minutes
 const HEAL_INTERVAL_MAX = 360000  // 6 minutes
 const ADB_TIMEOUT = 10000
@@ -193,8 +194,18 @@ app.use(express.json())
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*')
   res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
-  res.header('Access-Control-Allow-Headers', 'Content-Type')
+  res.header('Access-Control-Allow-Headers', 'Content-Type, X-API-Key')
   if (req.method === 'OPTIONS') return res.sendStatus(204)
+  next()
+})
+
+// API key auth middleware for /api/* routes
+app.use('/api', (req, res, next) => {
+  if (!API_KEY) return next() // no key configured = no auth
+  const provided = req.headers['x-api-key'] || req.query.api_key || ''
+  if (provided !== API_KEY) {
+    return res.status(401).json({ error: 'unauthorized' })
+  }
   next()
 })
 
