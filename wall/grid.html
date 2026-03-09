@@ -50,6 +50,76 @@
       padding: 4px 6px;
     }
 
+    .label-nick {
+      color: #e94560;
+      font-weight: bold;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline;
+    }
+
+    .label-nick:hover {
+      text-decoration: underline;
+    }
+
+    .label-nick:empty::before {
+      content: '+ add label';
+      color: #555;
+      font-weight: normal;
+      font-style: italic;
+    }
+
+    .label-model {
+      color: #888;
+      font-size: 11px;
+      display: block;
+      margin-top: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .label-edit {
+      background: #222;
+      color: #e94560;
+      border: 1px solid #e94560;
+      border-radius: 3px;
+      padding: 2px 4px;
+      font-size: 12px;
+      font-family: inherit;
+      width: calc(100% - 12px);
+      outline: none;
+    }
+
+    .find-btn {
+      background: none;
+      border: 1px solid #555;
+      color: #aaa;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .find-btn:hover {
+      background: #333;
+      color: #fff;
+      border-color: #e94560;
+    }
+
+    .find-btn.flashing {
+      background: #e94560;
+      color: #fff;
+      border-color: #e94560;
+      animation: pulse-find 0.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-find {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
     .status {
       position: absolute;
       top: 4px;
@@ -223,6 +293,29 @@
 
     .toolbar-btn .badge.hidden { display: none; }
 
+    .toolbar-search {
+      background: #16213e;
+      color: #eee;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-size: 12px;
+      outline: none;
+      min-width: 140px;
+    }
+
+    .toolbar-search:focus {
+      border-color: #e94560;
+    }
+
+    .toolbar-search::placeholder {
+      color: #666;
+    }
+
+    .device.search-hidden {
+      display: none;
+    }
+
     /* ── Group headers ── */
     .group-header {
       grid-column: 1 / -1;
@@ -359,6 +452,19 @@
         font-size: 13px;
       }
 
+      .label-nick {
+        font-size: 14px;
+      }
+
+      .label-model {
+        font-size: 10px;
+      }
+
+      .find-btn {
+        padding: 6px 10px;
+        font-size: 12px;
+      }
+
       .status {
         font-size: 11px;
       }
@@ -404,6 +510,7 @@
   <button class="toolbar-btn stop" id="btn-stop-all" onclick="bulkStopAll()">Stop All</button>
   <span class="toolbar-info" id="heal-count"></span>
   <span class="toolbar-spacer"></span>
+  <input class="toolbar-search" id="device-search" type="text" placeholder="Search devices..." oninput="filterDevices(this.value)">
   <button class="toolbar-btn" id="btn-group" onclick="toggleGroupByModel()">Group by Model</button>
   <button class="toolbar-btn" id="btn-log" onclick="toggleEventLog()">Event Log <span class="badge hidden" id="log-badge">0</span></button>
 </div>
@@ -471,6 +578,79 @@ function saveToken() {
   }
 }
 
+// ── Device nicknames (rack labels) ──
+const NICK_KEY = 'stf_device_nicks'
+
+function getAllNicks() {
+  try { return JSON.parse(localStorage.getItem(NICK_KEY)) || {} } catch { return {} }
+}
+
+function getDeviceNick(serial) {
+  return getAllNicks()[serial] || ''
+}
+
+function saveDeviceNick(serial, nick) {
+  const nicks = getAllNicks()
+  if (nick) {
+    nicks[serial] = nick
+  } else {
+    delete nicks[serial]
+  }
+  localStorage.setItem(NICK_KEY, JSON.stringify(nicks))
+}
+
+function editDeviceNick(serial, nickEl) {
+  // Already editing?
+  if (nickEl.querySelector('.label-edit')) return
+
+  const current = nickEl.textContent
+  const input = document.createElement('input')
+  input.className = 'label-edit'
+  input.type = 'text'
+  input.value = current
+  input.placeholder = 'e.g. Rack 1 - Slot 3'
+  input.maxLength = 40
+
+  nickEl.textContent = ''
+  nickEl.appendChild(input)
+  input.focus()
+  input.select()
+
+  function commit() {
+    const val = input.value.trim()
+    saveDeviceNick(serial, val)
+    nickEl.textContent = val
+
+    // Update registry for event log names
+    const entry = deviceRegistry.find(d => d.serial === serial)
+    if (entry) entry.nick = val
+  }
+
+  input.addEventListener('blur', commit)
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur() }
+    if (e.key === 'Escape') { input.value = current; input.blur() }
+  })
+}
+
+async function findDevice(serial, btn) {
+  if (btn.classList.contains('flashing')) return
+  btn.classList.add('flashing')
+  btn.textContent = 'Flashing...'
+
+  try {
+    await fetch("/healer/api/find/" + serial, { method: "POST" })
+  } catch (err) {
+    console.error("find device failed:", err)
+  }
+
+  // Visual feedback lasts 6 seconds regardless
+  setTimeout(() => {
+    btn.classList.remove('flashing')
+    btn.textContent = 'Find'
+  }, 6000)
+}
+
 async function api(method, path, body) {
   const headers = { "Content-Type": "application/json" }
   const token = getToken()
@@ -485,7 +665,7 @@ function setStatus(text) {
   document.getElementById("status-bar").innerHTML = text
 }
 
-function createDeviceEl(serial, model) {
+function createDeviceEl(serial, model, note) {
   const container = document.createElement("div")
   container.className = "device"
   container.id = "dev-" + serial
@@ -496,7 +676,23 @@ function createDeviceEl(serial, model) {
 
   const label = document.createElement("div")
   label.className = "label"
-  label.innerText = model ? `${model} (${serial})` : serial
+
+  // Nickname: use STF note, then localStorage override, then empty
+  const savedNick = getDeviceNick(serial)
+  const nick = savedNick || note || ''
+
+  const nickEl = document.createElement("span")
+  nickEl.className = "label-nick"
+  nickEl.textContent = nick
+  nickEl.title = "Click to edit label"
+  nickEl.onclick = (e) => { e.stopPropagation(); editDeviceNick(serial, nickEl) }
+
+  const modelEl = document.createElement("span")
+  modelEl.className = "label-model"
+  modelEl.textContent = model ? `${model} · ${serial}` : serial
+
+  label.appendChild(nickEl)
+  label.appendChild(modelEl)
 
   const status = document.createElement("div")
   status.className = "status connecting"
@@ -504,6 +700,13 @@ function createDeviceEl(serial, model) {
 
   const controls = document.createElement("div")
   controls.className = "controls"
+
+  const findBtn = document.createElement("button")
+  findBtn.className = "find-btn"
+  findBtn.textContent = "Find"
+  findBtn.title = "Flash device screen to locate it"
+  findBtn.onclick = (e) => { e.stopPropagation(); findDevice(serial, findBtn) }
+  controls.appendChild(findBtn)
 
   const spotifyWrap = document.createElement("span")
   spotifyWrap.style.position = "relative"
@@ -635,8 +838,8 @@ function connectStream(wsUrl, el) {
   start()
 }
 
-async function startDevice(serial, model) {
-  const el = createDeviceEl(serial, model)
+async function startDevice(serial, model, note) {
+  const el = createDeviceEl(serial, model, note)
 
   try {
     const displayUrl = await claimDevice(serial)
@@ -874,7 +1077,10 @@ async function bulkStopAll() {
 
 function getDeviceName(serial) {
   const entry = deviceRegistry.find(d => d.serial === serial)
-  if (entry && entry.model) return `${entry.model} (${serial})`
+  if (!entry) return serial
+  const nick = entry.nick || getDeviceNick(serial)
+  if (nick) return `${nick} — ${entry.model || serial}`
+  if (entry.model) return `${entry.model} (${serial})`
   return serial
 }
 
@@ -998,6 +1204,41 @@ async function pollDeviceChanges() {
   }
 }
 
+// ── Search/filter devices ──
+function filterDevices(query) {
+  const q = query.toLowerCase().trim()
+  const grid = document.getElementById('grid')
+
+  deviceRegistry.forEach(d => {
+    const el = document.getElementById('dev-' + d.serial)
+    if (!el) return
+    if (!q) {
+      el.classList.remove('search-hidden')
+      return
+    }
+    const nick = d.nick || getDeviceNick(d.serial) || ''
+    const searchable = `${nick} ${d.model} ${d.serial}`.toLowerCase()
+    el.classList.toggle('search-hidden', !searchable.includes(q))
+  })
+
+  // Also hide/show group headers if grouping is on
+  if (isGroupByModel()) {
+    grid.querySelectorAll('.group-header').forEach(h => {
+      const next = h.nextElementSibling
+      // Show header if any device in its group is visible
+      let hasVisible = false
+      let sibling = h.nextElementSibling
+      while (sibling && !sibling.classList.contains('group-header')) {
+        if (sibling.classList.contains('device') && !sibling.classList.contains('search-hidden')) {
+          hasVisible = true
+        }
+        sibling = sibling.nextElementSibling
+      }
+      h.style.display = hasVisible ? '' : 'none'
+    })
+  }
+}
+
 async function syncHealerStatus() {
   try {
     const res = await fetch("/healer/api/status")
@@ -1045,11 +1286,14 @@ async function init() {
   setStatus(`<span class="count">${devices.length}</span> devices found — claiming...`)
 
   // Register devices for bulk actions and grouping
-  devices.forEach(d => deviceRegistry.push({ serial: d.serial, model: d.model || '' }))
+  devices.forEach(d => {
+    const nick = getDeviceNick(d.serial) || d.notes || ''
+    deviceRegistry.push({ serial: d.serial, model: d.model || '', nick })
+  })
   previousDeviceSerials = new Set(devices.map(d => d.serial))
 
   // Claim all devices in parallel
-  await Promise.all(devices.map(d => startDevice(d.serial, d.model)))
+  await Promise.all(devices.map(d => startDevice(d.serial, d.model, d.notes || '')))
 
   setStatus(`<span class="count">${devices.length}</span> devices streaming`)
 
