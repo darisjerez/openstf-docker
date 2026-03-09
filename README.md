@@ -1,6 +1,6 @@
 # OpenSTF Device Farm
 
-A Docker Compose setup for running [STF (Smartphone Test Farm)](https://github.com/DeviceFarmer/stf) on a physical Ubuntu server with USB-connected Android devices. Includes a live device wall, monitoring stack (Prometheus + Grafana), and Spotify self-healing watcher.
+A Docker Compose setup for running [STF (Smartphone Test Farm)](https://github.com/DeviceFarmer/stf) on a physical Ubuntu server with USB-connected Android devices. Includes a live device wall, monitoring stack (Prometheus + Grafana), Spotify self-healing watcher, and CI/CD pipelines with dev/prod environments.
 
 ## Architecture
 
@@ -8,7 +8,7 @@ A Docker Compose setup for running [STF (Smartphone Test Farm)](https://github.c
 ┌───────────────────────────────────────────────────────────┐
 │                  Ubuntu Server (Physical)                  │
 │  ┌─────────────┐    ┌───────────────────────────────┐     │
-│  │ ADB Server  │◄───│ USB Hub + 8 Android Devices   │     │
+│  │ ADB Server  │◄───│ USB Hubs + Android Devices    │     │
 │  │ (native)    │    └───────────────────────────────┘     │
 │  └──────┬──────┘                                          │
 │         │                                                  │
@@ -25,10 +25,10 @@ A Docker Compose setup for running [STF (Smartphone Test Farm)](https://github.c
 │  │  │ :9105      │  │ :9090      │  │ :3000   │       │  │
 │  │  └────────────┘  └────────────┘  └─────────┘       │  │
 │  │                                                      │  │
-│  │  ┌─────────────────┐                                │  │
-│  │  │ Spotify Healer  │                                │  │
-│  │  │ :9106           │                                │  │
-│  │  └─────────────────┘                                │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────┐  │  │
+│  │  │ Healer :9106 │  │ Monitor     │  │ Resource │  │  │
+│  │  │              │  │ :9107       │  │ :9108    │  │  │
+│  │  └──────────────┘  └──────────────┘  └──────────┘  │  │
 │  └─────────────────────────────────────────────────────┘  │
 └───────────────────────────────────────────────────────────┘
 ```
@@ -60,22 +60,103 @@ A Docker Compose setup for running [STF (Smartphone Test Farm)](https://github.c
 
 4. **Start all services:**
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 
 5. **Access the portal** at `http://<server-ip>` (port 80)
 
+### Automated Device Provisioning
+
+For new devices, use the provisioning script to configure all required settings:
+
+```bash
+./scripts/provision-device.sh <serial>   # single device
+./scripts/provision-device.sh --all      # all connected devices
+```
+
 ## Services
 
-| Service | Description | Port | Image |
-|---------|-------------|------|-------|
-| **rethinkdb** | Database for STF | 8080 (admin), 28015 (driver) | `rethinkdb:2.4` |
-| **stf** | Device farm — device control, screen streaming | 7100 (web), 7110 (ws) | `devicefarmer/stf:latest` |
-| **nginx** | Reverse proxy — portal, wall, STF, Grafana, healer | 80 | `nginx:latest` |
-| **stf-exporter** | Prometheus exporter — per-device online/offline metrics | 9105 | `node:18` |
-| **prometheus** | Metrics scraping and storage | 9090 | `prom/prometheus` |
-| **grafana** | Dashboards and email alerts (Zoho SMTP) | 3000 | `grafana/grafana` |
-| **spotify-healer** | Auto-restarts Spotify playback on devices via ADB | 9106 | `node:18-alpine` |
+| Service | Description | Port (Prod) | Port (Dev) |
+|---------|-------------|-------------|------------|
+| **rethinkdb** | Database for STF | 8080 / 28015 | 8180 / 28115 |
+| **stf** | Device farm — device control, screen streaming | 7100 / 7110 | 7200 / 7210 |
+| **nginx** | Reverse proxy — portal, wall, STF, Grafana, healer | 80 | 8880 |
+| **stf-exporter** | Prometheus exporter — per-device online/offline metrics | 9105 | 9205 |
+| **device-monitor** | ADB device polling — battery, connectivity, auto-reconnect | 9107 | 9207 |
+| **resource-monitor** | Server resource metrics — CPU, RAM, disk, USB count | 9108 | 9208 |
+| **prometheus** | Metrics scraping and storage | 9090 | 9190 |
+| **grafana** | Dashboards and email alerts (Zoho SMTP) | 3000 | 3100 |
+| **spotify-healer** | Auto-restarts Spotify playback on devices via ADB | 9106 | 9206 |
+
+## Deployment
+
+### Environments
+
+Both dev and prod environments can run on the same server using a port offset strategy. Dev is infra-only (validates configs, dashboards, alerts) while prod owns all physical devices.
+
+```bash
+# Production (default)
+docker compose --env-file envs/.env.prod -p stf-prod up -d
+
+# Development
+docker compose --env-file envs/.env.dev -p stf-dev up -d
+
+# Or use the deploy helper script
+./scripts/deploy.sh prod
+./scripts/deploy.sh dev
+```
+
+### CI/CD Pipelines (GitHub Actions)
+
+| Workflow | Trigger | Environment |
+|----------|---------|-------------|
+| `deploy-dev.yml` | Push to `feature/*` branches, PRs to main/dev | Dev |
+| `deploy-prod.yml` | Push to `main` | Production |
+
+Both workflows run smoke tests after deployment to validate all service endpoints.
+
+**Setup requirements:**
+1. Configure the Ubuntu server as a [GitHub self-hosted runner](https://docs.github.com/en/actions/hosting-your-own-runners)
+2. Add `PUBLIC_IP` as a repository secret (Settings > Secrets > Actions)
+3. Create `dev` and `production` environments in GitHub (Settings > Environments)
+4. Optionally add approval gates for the `production` environment
+
+### Smoke Tests
+
+```bash
+./scripts/smoke-test.sh prod   # test production endpoints
+./scripts/smoke-test.sh dev    # test dev endpoints
+```
+
+Tests all service health endpoints, metrics endpoints, and nginx proxied routes.
+
+### RethinkDB Backup & Restore
+
+```bash
+./scripts/backup-rethinkdb.sh           # creates timestamped backup in ./backups/
+./scripts/restore-rethinkdb.sh <file>   # restores from a backup file
+```
+
+Backups retain the last 7 files automatically. Add to cron for scheduled backups.
+
+## Branching Strategy
+
+Feature development uses categorized branches that are gradually rolled out to production:
+
+| Branch | Phase | Description |
+|--------|-------|-------------|
+| `feature/reliability-monitoring` | 1 | Error metrics, auto-reconnect, alerts, Docker health checks |
+| `feature/spotify-hardening` | 2 | Playlist rotation, human-like pauses, volume variation |
+| `feature/ux-management` | 3 | Bulk actions, grouping, event log, device labels, search, find device |
+| `feature/infrastructure` | 4 | Device provisioning, DB backups, resource monitoring |
+| `feature/chores` | 5 | API key auth, wall auto-refresh with toast notifications |
+| `feature/cicd-pipelines` | 6 | GitHub Actions dev/prod deploy, smoke tests, port strategy |
+
+**Workflow:**
+1. Each improvement phase gets its own `feature/*` branch from `main`
+2. Feature branches are deployed and tested in the dev environment first
+3. After validation, branches are merged into `main` for production deployment
+4. This allows gradual rollout — merge one phase at a time
 
 ## Web Portal
 
@@ -87,8 +168,6 @@ Nginx serves a tabbed portal at `http://<server-ip>/` with three views:
 | **STF Panel** | `/stf/` | Full STF web UI for device control and management |
 | **Grafana** | `/grafana/` | Monitoring dashboards |
 
-The Wall tab is the default view. Switching tabs destroys the wall iframe to free resources, and reloads it when switching back.
-
 ### Device Wall
 
 The wall (`wall/grid.html`) displays a live grid of all connected device screens. It requires an STF access token:
@@ -97,10 +176,18 @@ The wall (`wall/grid.html`) displays a live grid of all connected device screens
 2. Go to **Settings > Keys > Add a new key**
 3. Copy the token and paste it into the wall setup prompt
 
-The wall claims all present devices, opens WebSocket streams for each, and renders frames on canvas elements. Each device card has:
+Each device card features:
+- **Rack label** — editable nickname (e.g. "Rack 1 - Slot 3"), auto-imports STF notes
+- **Model & serial** — shown as secondary text below the label
+- **Find button** — flashes the physical device screen to locate it on the rack
+- **Spotify toggle** — enables/disables the Spotify self-healing watcher with duration picker
+- **Live countdown** — shows remaining heal duration
 
-- **Stop/Resume** button — pauses or resumes the screen stream
-- **Spotify** toggle — enables/disables the Spotify self-healing watcher for that device
+The toolbar provides:
+- **Start All / Stop All** — bulk healer control for all devices
+- **Search bar** — filter devices by label, model, or serial
+- **Group by Model** — organize the grid by device model
+- **Event Log** — collapsible panel showing heal actions, connects, disconnects
 
 ## Spotify Self-Healing Watcher
 
@@ -108,84 +195,95 @@ Devices in the farm play Spotify music continuously. The healer service automati
 
 ### How It Works
 
-Every 5 minutes per watched device, the healer runs:
+Every 4-6 minutes (randomized) per watched device, the healer runs:
 
 1. **`adb shell pidof com.spotify.music`** — checks if Spotify is running
-2. If not running: launches Spotify via `am start`, waits 3s, sends play command
+2. If not running: launches Spotify with a random playlist, waits 3s, sends play command
 3. If running: checks `dumpsys media_session` for `state=3` (playing)
-4. If paused: sends `media dispatch play` (fallback: `input keyevent 126`)
+4. If paused: sends `input keyevent 126` (play)
+
+### Hardening Features
+
+- **Playlist rotation** — cycles through a pool of playlists to avoid pattern detection
+- **Human-like pauses** — 7% chance per cycle to pause 30-120s then resume
+- **Volume variation** — random volume (8-15) per device, 20% chance to vary each cycle
+- **Staggered starts** — random initial delay so devices don't all heal simultaneously
+- **API key auth** — optional `HEALER_API_KEY` env var to secure endpoints
 
 ### API
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/healer/api/status` | All watcher states |
-| `POST` | `/healer/api/watch/:serial` | Start watching a device |
-| `DELETE` | `/healer/api/watch/:serial` | Stop watching a device |
+| `POST` | `/healer/api/watch/:serial` | Start watching (body: `{duration}`) |
+| `DELETE` | `/healer/api/watch/:serial` | Stop watching |
 | `GET` | `/healer/api/watch/:serial` | Single device state |
+| `POST` | `/healer/api/find/:serial` | Flash device screen to locate it |
+| `GET` | `/healer/api/playlists` | View playlist pool |
+| `PUT` | `/healer/api/playlists` | Update playlist pool |
 | `GET` | `/healer/metrics` | Prometheus metrics |
-
-### Prometheus Metrics
-
-| Metric | Type | Description |
-|--------|------|-------------|
-| `spotify_healer_watching{serial,model}` | gauge | Watcher active (1/0) |
-| `spotify_healer_playing{serial,model}` | gauge | Spotify playing (1/0) |
-| `spotify_healer_heal_total{serial,model}` | counter | Number of heal actions |
-| `spotify_healer_battery_level{serial,model}` | gauge | Battery percentage |
-| `spotify_healer_heals_total{serial,model,action}` | counter | Heals by type (launched/play_sent) |
 
 ## Monitoring
 
-### STF Exporter (port 9105)
+### Grafana Dashboards
 
-Reads device data from RethinkDB and exposes Prometheus metrics:
+| Dashboard | Panels |
+|-----------|--------|
+| **Spotify & Battery** | Battery gauge, battery over time, heal timeline, playback status table |
+| **System Health** | Scrape targets status, device online/offline, error rates, reconnect attempts, time since last heal |
 
-| Metric | Type | Description |
-|--------|------|-------------|
-| `stf_devices_total` | gauge | Total registered devices |
-| `stf_devices_online` | gauge | Currently online devices |
-| `stf_devices_offline` | gauge | Currently offline devices |
-| `stf_device_online{serial, model}` | gauge | Per-device status (1/0) |
+### Alerts (via Zoho SMTP)
 
-### Prometheus (port 9090)
+| Alert | Condition | Severity |
+|-------|-----------|----------|
+| Low Battery | < 15% for 5 min | Warning |
+| Critical Battery | < 10% for 2 min | Critical |
+| Device Offline | Offline > 5 min | Critical |
+| Healer Error Spike | > 3 errors in 10 min | Warning |
+| Scrape Target Down | `up == 0` for 2 min | Critical |
+| Spotify Heal Event | Any heal action | Info |
 
-Scrapes metrics from:
-- STF exporter on `:9105` (every 15s)
-- Spotify healer on `:9106` (every 15s)
+### Prometheus Metrics
 
-### Grafana (port 3000)
+All Node.js services expose `/metrics` endpoints with per-device labels `{serial, model}`:
 
-- Anonymous access enabled (Viewer role)
-- Embedded in the portal via `/grafana/` sub-path
-- Email alerts configured via Zoho SMTP
+**STF Exporter (:9105):** `stf_devices_total`, `stf_devices_online`, `stf_device_online`, `stf_exporter_scrape_errors_total`
+
+**Healer (:9106):** `spotify_healer_watching`, `spotify_healer_playing`, `spotify_healer_heal_total`, `spotify_healer_errors_total{type}`, `spotify_healer_last_success_timestamp`
+
+**Device Monitor (:9107):** `device_online`, `device_battery_level`, `device_offline_streak`, `device_errors_total{type}`, `device_reconnect_attempts`
+
+**Resource Monitor (:9108):** `server_cpu_usage_percent`, `server_memory_usage_bytes`, `server_disk_usage_percent{mount}`, `server_usb_device_count`
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `docker-compose.yml` | All 7 services |
+| `docker-compose.yml` | Base service definitions |
+| `docker-compose.override.yml` | Environment-aware overrides (ports, names, configs) |
+| `envs/.env.prod` | Production port and volume config |
+| `envs/.env.dev` | Development port and volume config |
 | `.env` | `PUBLIC_IP` for the server |
 | `wall/portal.html` | Tabbed portal page (Wall, STF, Grafana) |
-| `wall/grid.html` | Device wall — live screen grid with Spotify toggles |
-| `wall/nginx.conf` | Nginx config — proxies STF, Grafana, healer; serves portal and wall |
-| `exporter/stf-exporter.js` | Prometheus exporter for device online/offline status |
-| `healer/spotify-healer.js` | Spotify self-healing watcher service |
-| `healer/package.json` | Dependencies for the healer |
-| `prometheus.yml` | Scrape config for exporter and healer |
-
-## Connected Devices
-
-| Serial | Model | SDK |
-|--------|-------|-----|
-| 320216036286 | ZTE Blade L8 | 28 |
-| 5063698484070606 | S34 | 30 |
-| A41CF923 | T790W (Seattle 5G) | 30 |
-| DMEAVGPNSOSSSSYH | REVVL 2 | 27 |
-| LMK500TW8HYTRW7HJB | LG K500 | 29 |
-| R5CN60BYPPN | Samsung A71 (SM-A716U) | - |
-| R9WT60FF3NK | Samsung SM-S134DL | 33 |
-| ZT3226HXRF | Moto G20 | 30 |
+| `wall/grid.html` | Device wall — live screen grid with labels, search, find, bulk actions |
+| `wall/nginx-prod.conf` | Nginx config for production ports |
+| `wall/nginx-dev.conf` | Nginx config for development ports |
+| `exporter/stf-exporter.js` | Prometheus exporter for STF device status |
+| `healer/spotify-healer.js` | Spotify self-healing watcher + find device endpoint |
+| `monitor/device-monitor.js` | ADB device polling, battery, auto-reconnect |
+| `monitor/resource-monitor.js` | Server CPU/RAM/disk/USB metrics |
+| `prometheus-prod.yml` | Production scrape targets |
+| `prometheus-dev.yml` | Development scrape targets |
+| `grafana/dashboards/spotify-battery.json` | Spotify & Battery dashboard |
+| `grafana/dashboards/system-health.json` | System Health dashboard |
+| `grafana/provisioning/alerting/alerts.yml` | Alert rules and contact points |
+| `scripts/deploy.sh` | Deploy helper (dev or prod) |
+| `scripts/smoke-test.sh` | Health check all endpoints |
+| `scripts/provision-device.sh` | Automated Android device setup |
+| `scripts/backup-rethinkdb.sh` | RethinkDB backup (7-day retention) |
+| `scripts/restore-rethinkdb.sh` | RethinkDB restore from backup |
+| `.github/workflows/deploy-dev.yml` | GitHub Actions — deploy to dev |
+| `.github/workflows/deploy-prod.yml` | GitHub Actions — deploy to prod |
 
 ## Device Setup
 
@@ -197,6 +295,8 @@ Each Android device requires:
 4. **File Transfer Mode** — Set USB mode to MTP/File Transfer
 5. **Authorize Connection** — Accept the RSA key prompt on the device
 
+Or run `./scripts/provision-device.sh <serial>` to automate post-connection setup.
+
 ### Samsung Devices (Additional)
 
 - Enable: Settings > Developer Options > USB debugging (Security settings)
@@ -204,16 +304,12 @@ Each Android device requires:
 
 ## Configuration
 
-### .env File
+### Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `PUBLIC_IP` | Server's local IP address (required) |
-
-```bash
-cp .env.example .env
-sed -i "s/PUBLIC_IP=.*/PUBLIC_IP=$(hostname -I | awk '{print $1}')/" .env
-```
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `PUBLIC_IP` | Server's local IP address | Yes |
+| `HEALER_API_KEY` | API key for healer endpoints (empty = no auth) | No |
 
 ### Nginx Proxy Routes
 
@@ -221,38 +317,41 @@ sed -i "s/PUBLIC_IP=.*/PUBLIC_IP=$(hostname -I | awk '{print $1}')/" .env
 |------|---------|---------|
 | `/` | `portal.html` (static) | Tabbed portal page |
 | `/wall` | `grid.html` (static) | Device wall |
-| `/stf/` | `172.17.0.1:7100` | STF web UI |
-| `/grafana/` | `172.17.0.1:3000` | Grafana dashboards |
-| `/healer/` | `172.17.0.1:9106` | Spotify healer API |
-| `/screen/:port` | `172.17.0.1:<port>` | WebSocket screen streams |
-| `/*` | `172.17.0.1:7100` | STF API and static assets (fallback) |
+| `/stf/` | STF `:7100` | STF web UI |
+| `/grafana/` | Grafana `:3000` | Grafana dashboards |
+| `/healer/` | Healer `:9106` | Spotify healer API |
+| `/monitor/` | Monitor `:9107` | Device monitor API |
+| `/screen/:port` | STF stream port | WebSocket screen streams |
+| `/*` | STF `:7100` | STF API and static assets (fallback) |
 
 ## Usage
 
 ```bash
-# Start all services
-docker-compose up -d
+# Start all services (default/legacy)
+docker compose up -d
 
-# Start a specific service
-docker-compose up -d spotify-healer
+# Environment-specific deployment
+./scripts/deploy.sh prod
+./scripts/deploy.sh dev
 
 # View logs
-docker-compose logs -f              # all services
-docker-compose logs -f stf           # STF only
-docker-compose logs -f spotify-healer # healer only
+docker compose logs -f              # all services
+docker compose logs -f spotify-healer # healer only
 
 # Check status
-docker-compose ps
+docker compose ps
 
-# Restart services
-docker-compose restart
-docker-compose restart nginx         # after config changes
+# Restart after config changes
+docker compose restart nginx
 
 # Stop everything
-docker-compose down
+docker compose down
 
-# Stop and remove volumes (destructive)
-docker-compose down -v
+# Backup database
+./scripts/backup-rethinkdb.sh
+
+# Provision a new device
+./scripts/provision-device.sh <serial>
 ```
 
 ## Troubleshooting
@@ -278,19 +377,24 @@ docker-compose down -v
 ### Wall Shows "no stream"
 - Ensure the STF access token is valid (regenerate if needed)
 - Check that devices aren't claimed by another STF user
-- Verify STF is running: `docker-compose logs stf`
+- Verify STF is running: `docker compose logs stf`
 
 ### Spotify Healer Not Working
-- Check healer logs: `docker-compose logs spotify-healer`
+- Check healer logs: `docker compose logs spotify-healer`
 - Test API directly: `curl http://<server-ip>:9106/api/status`
 - Verify ADB can reach devices: `adb devices` on the host
+
+### Dev/Prod Port Conflicts
+- Verify no port overlap between environments (see Services table)
+- Check with `docker compose -p stf-dev ps` and `docker compose -p stf-prod ps`
+- Run `./scripts/smoke-test.sh dev` to validate dev endpoints
 
 ## Volumes
 
 | Volume | Purpose |
 |--------|---------|
-| `rethinkdb-data` | Persistent RethinkDB storage |
-| `grafana-data` | Persistent Grafana dashboards and settings |
+| `rethinkdb-data` (prod: `stf-prod-rethinkdb-data`) | Persistent RethinkDB storage |
+| `grafana-data` (prod: `stf-prod-grafana-data`) | Persistent Grafana dashboards and settings |
 
 ## License
 
