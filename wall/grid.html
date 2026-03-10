@@ -50,6 +50,76 @@
       padding: 4px 6px;
     }
 
+    .label-nick {
+      color: #e94560;
+      font-weight: bold;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline;
+    }
+
+    .label-nick:hover {
+      text-decoration: underline;
+    }
+
+    .label-nick:empty::before {
+      content: '+ add label';
+      color: #555;
+      font-weight: normal;
+      font-style: italic;
+    }
+
+    .label-model {
+      color: #888;
+      font-size: 11px;
+      display: block;
+      margin-top: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .label-edit {
+      background: #222;
+      color: #e94560;
+      border: 1px solid #e94560;
+      border-radius: 3px;
+      padding: 2px 4px;
+      font-size: 12px;
+      font-family: inherit;
+      width: calc(100% - 12px);
+      outline: none;
+    }
+
+    .find-btn {
+      background: none;
+      border: 1px solid #555;
+      color: #aaa;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .find-btn:hover {
+      background: #333;
+      color: #fff;
+      border-color: #e94560;
+    }
+
+    .find-btn.flashing {
+      background: #e94560;
+      color: #fff;
+      border-color: #e94560;
+      animation: pulse-find 0.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-find {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
     .status {
       position: absolute;
       top: 4px;
@@ -148,6 +218,227 @@
       color: #0f0;
     }
 
+    /* ── Toolbar ── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: #1a1a2e;
+      border-bottom: 1px solid #333;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-btn {
+      background: #16213e;
+      color: #eee;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 6px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .toolbar-btn:hover {
+      background: #1a2a4e;
+    }
+
+    .toolbar-btn.accent {
+      background: #e94560;
+      border-color: #e94560;
+      color: #fff;
+    }
+
+    .toolbar-btn.accent:hover {
+      background: #c73a52;
+    }
+
+    .toolbar-btn.stop {
+      background: #555;
+      border-color: #666;
+    }
+
+    .toolbar-btn.stop:hover {
+      background: #666;
+    }
+
+    .toolbar-btn.active {
+      background: #e94560;
+      border-color: #e94560;
+      color: #fff;
+    }
+
+    .toolbar-info {
+      color: #aaa;
+      font-size: 12px;
+      margin-left: 4px;
+    }
+
+    .toolbar-info .hl { color: #e94560; font-weight: bold; }
+
+    .toolbar-spacer { flex: 1; }
+
+    .toolbar-btn .badge {
+      display: inline-block;
+      background: #e94560;
+      color: #fff;
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 8px;
+      margin-left: 4px;
+      min-width: 14px;
+      text-align: center;
+    }
+
+    .toolbar-btn .badge.hidden { display: none; }
+
+    .toolbar-search {
+      background: #16213e;
+      color: #eee;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-size: 12px;
+      outline: none;
+      min-width: 140px;
+    }
+
+    .toolbar-search:focus {
+      border-color: #e94560;
+    }
+
+    .toolbar-search::placeholder {
+      color: #666;
+    }
+
+    .device.search-hidden {
+      display: none;
+    }
+
+    /* ── Group headers ── */
+    .group-header {
+      grid-column: 1 / -1;
+      color: #e94560;
+      font-size: 14px;
+      font-weight: bold;
+      padding: 10px 4px 2px;
+      border-bottom: 1px solid #333;
+      margin-bottom: 0;
+    }
+
+    /* ── Event Log Panel ── */
+    .event-log-panel {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #1a1a2e;
+      border-top: 2px solid #e94560;
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      max-height: 40vh;
+      transform: translateY(100%);
+      transition: transform 0.25s ease;
+    }
+
+    .event-log-panel.open {
+      transform: translateY(0);
+    }
+
+    .event-log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 14px;
+      background: #16213e;
+      color: #eee;
+      font-size: 13px;
+      cursor: pointer;
+      user-select: none;
+      flex-shrink: 0;
+    }
+
+    .event-log-header span { font-weight: bold; }
+
+    .event-log-close {
+      background: none;
+      border: none;
+      color: #aaa;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0 4px;
+    }
+
+    .event-log-close:hover { color: #fff; }
+
+    .event-log-body {
+      overflow-y: auto;
+      flex: 1;
+      padding: 0;
+    }
+
+    .event-log-empty {
+      color: #666;
+      text-align: center;
+      padding: 20px;
+      font-size: 13px;
+    }
+
+    .log-entry {
+      display: flex;
+      gap: 10px;
+      padding: 5px 14px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 11px;
+      color: #ccc;
+      border-bottom: 1px solid #222;
+    }
+
+    .log-entry .log-time { color: #666; white-space: nowrap; }
+    .log-entry .log-device { color: #e94560; white-space: nowrap; min-width: 100px; }
+    .log-entry .log-action { color: #aaa; }
+
+    .log-entry.heal .log-action { color: #1DB954; }
+    .log-entry.connect .log-action { color: #0f0; }
+    .log-entry.disconnect .log-action { color: #f00; }
+    .log-entry.start .log-action { color: #ff0; }
+    .log-entry.stop .log-action { color: #888; }
+
+    @media (max-width: 768px) {
+      .toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+      }
+
+      .toolbar-btn {
+        padding: 10px 14px;
+        font-size: 14px;
+        text-align: center;
+      }
+
+      .toolbar-spacer { display: none; }
+
+      .toolbar-info {
+        text-align: center;
+        margin-left: 0;
+      }
+
+      .event-log-panel {
+        max-height: 60vh;
+        border-radius: 12px 12px 0 0;
+      }
+
+      .log-entry {
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+
+      .log-entry .log-device { min-width: auto; }
+    }
+
     @media (max-width: 600px) {
       .grid {
         grid-template-columns: repeat(3, 1fr);
@@ -159,6 +450,19 @@
 
       .label {
         font-size: 13px;
+      }
+
+      .label-nick {
+        font-size: 14px;
+      }
+
+      .label-model {
+        font-size: 10px;
+      }
+
+      .find-btn {
+        padding: 6px 10px;
+        font-size: 12px;
       }
 
       .status {
@@ -201,7 +505,27 @@
   <span id="status-bar">loading...</span>
 </div>
 
+<div class="toolbar" id="toolbar" style="display:none">
+  <button class="toolbar-btn accent" id="btn-start-all" onclick="bulkStartAll()">Start All</button>
+  <button class="toolbar-btn stop" id="btn-stop-all" onclick="bulkStopAll()">Stop All</button>
+  <span class="toolbar-info" id="heal-count"></span>
+  <span class="toolbar-spacer"></span>
+  <input class="toolbar-search" id="device-search" type="text" placeholder="Search devices..." oninput="filterDevices(this.value)">
+  <button class="toolbar-btn" id="btn-group" onclick="toggleGroupByModel()">Group by Model</button>
+  <button class="toolbar-btn" id="btn-log" onclick="toggleEventLog()">Event Log <span class="badge hidden" id="log-badge">0</span></button>
+</div>
+
 <div class="grid" id="grid"></div>
+
+<div class="event-log-panel" id="event-log-panel">
+  <div class="event-log-header" onclick="toggleEventLog()">
+    <span>Event Log</span>
+    <button class="event-log-close">&times;</button>
+  </div>
+  <div class="event-log-body" id="event-log-body">
+    <div class="event-log-empty">No events yet</div>
+  </div>
+</div>
 
 <div class="setup" id="setup" style="display:none">
   <p>Paste your STF access token below to enable the device wall.</p>
@@ -254,6 +578,79 @@ function saveToken() {
   }
 }
 
+// ── Device nicknames (rack labels) ──
+const NICK_KEY = 'stf_device_nicks'
+
+function getAllNicks() {
+  try { return JSON.parse(localStorage.getItem(NICK_KEY)) || {} } catch { return {} }
+}
+
+function getDeviceNick(serial) {
+  return getAllNicks()[serial] || ''
+}
+
+function saveDeviceNick(serial, nick) {
+  const nicks = getAllNicks()
+  if (nick) {
+    nicks[serial] = nick
+  } else {
+    delete nicks[serial]
+  }
+  localStorage.setItem(NICK_KEY, JSON.stringify(nicks))
+}
+
+function editDeviceNick(serial, nickEl) {
+  // Already editing?
+  if (nickEl.querySelector('.label-edit')) return
+
+  const current = nickEl.textContent
+  const input = document.createElement('input')
+  input.className = 'label-edit'
+  input.type = 'text'
+  input.value = current
+  input.placeholder = 'e.g. Rack 1 - Slot 3'
+  input.maxLength = 40
+
+  nickEl.textContent = ''
+  nickEl.appendChild(input)
+  input.focus()
+  input.select()
+
+  function commit() {
+    const val = input.value.trim()
+    saveDeviceNick(serial, val)
+    nickEl.textContent = val
+
+    // Update registry for event log names
+    const entry = deviceRegistry.find(d => d.serial === serial)
+    if (entry) entry.nick = val
+  }
+
+  input.addEventListener('blur', commit)
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur() }
+    if (e.key === 'Escape') { input.value = current; input.blur() }
+  })
+}
+
+async function findDevice(serial, btn) {
+  if (btn.classList.contains('flashing')) return
+  btn.classList.add('flashing')
+  btn.textContent = 'Flashing...'
+
+  try {
+    await fetch("/healer/api/find/" + serial, { method: "POST" })
+  } catch (err) {
+    console.error("find device failed:", err)
+  }
+
+  // Visual feedback lasts 6 seconds regardless
+  setTimeout(() => {
+    btn.classList.remove('flashing')
+    btn.textContent = 'Find'
+  }, 6000)
+}
+
 async function api(method, path, body) {
   const headers = { "Content-Type": "application/json" }
   const token = getToken()
@@ -268,7 +665,7 @@ function setStatus(text) {
   document.getElementById("status-bar").innerHTML = text
 }
 
-function createDeviceEl(serial, model) {
+function createDeviceEl(serial, model, note) {
   const container = document.createElement("div")
   container.className = "device"
   container.id = "dev-" + serial
@@ -279,7 +676,23 @@ function createDeviceEl(serial, model) {
 
   const label = document.createElement("div")
   label.className = "label"
-  label.innerText = model ? `${model} (${serial})` : serial
+
+  // Nickname: use STF note, then localStorage override, then empty
+  const savedNick = getDeviceNick(serial)
+  const nick = savedNick || note || ''
+
+  const nickEl = document.createElement("span")
+  nickEl.className = "label-nick"
+  nickEl.textContent = nick
+  nickEl.title = "Click to edit label"
+  nickEl.onclick = (e) => { e.stopPropagation(); editDeviceNick(serial, nickEl) }
+
+  const modelEl = document.createElement("span")
+  modelEl.className = "label-model"
+  modelEl.textContent = model ? `${model} · ${serial}` : serial
+
+  label.appendChild(nickEl)
+  label.appendChild(modelEl)
 
   const status = document.createElement("div")
   status.className = "status connecting"
@@ -287,6 +700,13 @@ function createDeviceEl(serial, model) {
 
   const controls = document.createElement("div")
   controls.className = "controls"
+
+  const findBtn = document.createElement("button")
+  findBtn.className = "find-btn"
+  findBtn.textContent = "Find"
+  findBtn.title = "Flash device screen to locate it"
+  findBtn.onclick = (e) => { e.stopPropagation(); findDevice(serial, findBtn) }
+  controls.appendChild(findBtn)
 
   const spotifyWrap = document.createElement("span")
   spotifyWrap.style.position = "relative"
@@ -418,8 +838,8 @@ function connectStream(wsUrl, el) {
   start()
 }
 
-async function startDevice(serial, model) {
-  const el = createDeviceEl(serial, model)
+async function startDevice(serial, model, note) {
+  const el = createDeviceEl(serial, model, note)
 
   try {
     const displayUrl = await claimDevice(serial)
@@ -533,6 +953,292 @@ setInterval(() => {
   })
 }, 1000)
 
+// ── Device registry for bulk actions and grouping ──
+const deviceRegistry = [] // { serial, model }
+const GROUP_KEY = 'stf_group_by_model'
+
+// ── Event Log ──
+const MAX_LOG_ENTRIES = 100
+const eventLog = []
+let logUnread = 0
+let logOpen = false
+let previousHealerState = {} // serial -> { watching, playing, heals }
+let previousDeviceSerials = new Set()
+
+function addLogEntry(deviceName, action, type) {
+  const now = new Date()
+  const ts = now.toLocaleTimeString('en-US', { hour12: false }) + '.' + String(now.getMilliseconds()).padStart(3, '0')
+  eventLog.unshift({ ts, deviceName, action, type })
+  if (eventLog.length > MAX_LOG_ENTRIES) eventLog.pop()
+
+  if (!logOpen) {
+    logUnread++
+    updateLogBadge()
+  }
+  renderEventLog()
+}
+
+function updateLogBadge() {
+  const badge = document.getElementById('log-badge')
+  if (logUnread > 0) {
+    badge.textContent = logUnread > 99 ? '99+' : logUnread
+    badge.classList.remove('hidden')
+  } else {
+    badge.classList.add('hidden')
+  }
+}
+
+function renderEventLog() {
+  const body = document.getElementById('event-log-body')
+  if (eventLog.length === 0) {
+    body.innerHTML = '<div class="event-log-empty">No events yet</div>'
+    return
+  }
+  body.innerHTML = eventLog.map(e =>
+    `<div class="log-entry ${e.type}">` +
+      `<span class="log-time">${e.ts}</span>` +
+      `<span class="log-device">${e.deviceName}</span>` +
+      `<span class="log-action">${e.action}</span>` +
+    `</div>`
+  ).join('')
+}
+
+function toggleEventLog() {
+  logOpen = !logOpen
+  document.getElementById('event-log-panel').classList.toggle('open', logOpen)
+  document.getElementById('btn-log').classList.toggle('active', logOpen)
+  if (logOpen) {
+    logUnread = 0
+    updateLogBadge()
+  }
+}
+
+// ── Heal count display ──
+function updateHealCount() {
+  const allBtns = document.querySelectorAll('.spotify-toggle')
+  const activeCount = document.querySelectorAll('.spotify-toggle.active').length
+  const total = allBtns.length
+  const el = document.getElementById('heal-count')
+  el.innerHTML = `<span class="hl">${activeCount}</span> / ${total} devices healing`
+}
+
+// ── Bulk actions ──
+async function bulkStartAll() {
+  const duration = getLastDuration()
+  const btns = document.querySelectorAll('.spotify-toggle:not(.active)')
+  const promises = []
+  btns.forEach(btn => {
+    const devEl = btn.closest('.device')
+    if (!devEl) return
+    const serial = devEl.id.replace('dev-', '')
+    promises.push(
+      fetch("/healer/api/watch/" + serial, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ duration })
+      }).then(r => r.json()).then(data => {
+        btn.classList.add("active")
+        if (data.expiresAt) {
+          btn.dataset.expiresAt = data.expiresAt
+        } else {
+          delete btn.dataset.expiresAt
+        }
+        updateCountdownText(btn)
+        const name = getDeviceName(serial)
+        addLogEntry(name, 'Healing started (bulk)', 'start')
+      }).catch(err => console.error("bulk start failed for", serial, err))
+    )
+  })
+  await Promise.all(promises)
+  updateHealCount()
+}
+
+async function bulkStopAll() {
+  const btns = document.querySelectorAll('.spotify-toggle.active')
+  const promises = []
+  btns.forEach(btn => {
+    const devEl = btn.closest('.device')
+    if (!devEl) return
+    const serial = devEl.id.replace('dev-', '')
+    promises.push(
+      fetch("/healer/api/watch/" + serial, { method: "DELETE" })
+        .then(() => {
+          btn.classList.remove("active", "healing")
+          delete btn.dataset.expiresAt
+          updateCountdownText(btn)
+          const name = getDeviceName(serial)
+          addLogEntry(name, 'Healing stopped (bulk)', 'stop')
+        }).catch(err => console.error("bulk stop failed for", serial, err))
+    )
+  })
+  await Promise.all(promises)
+  updateHealCount()
+}
+
+function getDeviceName(serial) {
+  const entry = deviceRegistry.find(d => d.serial === serial)
+  if (!entry) return serial
+  const nick = entry.nick || getDeviceNick(serial)
+  if (nick) return `${nick} — ${entry.model || serial}`
+  if (entry.model) return `${entry.model} (${serial})`
+  return serial
+}
+
+// ── Group by Model ──
+function isGroupByModel() {
+  return localStorage.getItem(GROUP_KEY) === 'true'
+}
+
+function toggleGroupByModel() {
+  const current = isGroupByModel()
+  localStorage.setItem(GROUP_KEY, String(!current))
+  document.getElementById('btn-group').classList.toggle('active', !current)
+  applyGrouping()
+}
+
+function applyGrouping() {
+  const grid = document.getElementById('grid')
+  const grouped = isGroupByModel()
+
+  // Remove existing group headers
+  grid.querySelectorAll('.group-header').forEach(h => h.remove())
+
+  if (!grouped) {
+    // Restore original insertion order
+    const sorted = [...deviceRegistry]
+    sorted.forEach(d => {
+      const el = document.getElementById('dev-' + d.serial)
+      if (el) grid.appendChild(el)
+    })
+    return
+  }
+
+  // Group devices by model
+  const groups = {}
+  deviceRegistry.forEach(d => {
+    const key = d.model || 'Unknown'
+    if (!groups[key]) groups[key] = []
+    groups[key].push(d)
+  })
+
+  // Sort groups alphabetically, render with headers
+  Object.keys(groups).sort().forEach(model => {
+    const header = document.createElement('div')
+    header.className = 'group-header'
+    header.textContent = model + ' (' + groups[model].length + ')'
+    grid.appendChild(header)
+    groups[model].forEach(d => {
+      const el = document.getElementById('dev-' + d.serial)
+      if (el) grid.appendChild(el)
+    })
+  })
+}
+
+// ── Healer state diffing for event log ──
+async function pollHealerForEvents() {
+  try {
+    const res = await fetch("/healer/api/status")
+    const data = await res.json()
+
+    for (const [serial, state] of Object.entries(data)) {
+      const prev = previousHealerState[serial]
+      const name = getDeviceName(serial)
+
+      if (!prev) {
+        if (state.watching) {
+          addLogEntry(name, 'Healing started', 'start')
+        }
+      } else {
+        if (!prev.watching && state.watching) {
+          addLogEntry(name, 'Healing started', 'start')
+        } else if (prev.watching && !state.watching) {
+          addLogEntry(name, 'Healing stopped', 'stop')
+        }
+        if (state.heals !== undefined && prev.heals !== undefined && state.heals > prev.heals) {
+          addLogEntry(name, `Heal action performed (total: ${state.heals})`, 'heal')
+        }
+      }
+    }
+
+    // Detect devices that were removed from healer state
+    for (const serial of Object.keys(previousHealerState)) {
+      if (!data[serial] && previousHealerState[serial].watching) {
+        const name = getDeviceName(serial)
+        addLogEntry(name, 'Healing stopped', 'stop')
+      }
+    }
+
+    previousHealerState = {}
+    for (const [serial, state] of Object.entries(data)) {
+      previousHealerState[serial] = { ...state }
+    }
+  } catch (err) {
+    // Healer unavailable — silently ignore
+  }
+}
+
+// ── Device connect/disconnect detection ──
+async function pollDeviceChanges() {
+  try {
+    const data = await api("GET", "/api/v1/devices")
+    if (!data.devices) return
+    const presentSerials = new Set(data.devices.filter(d => d.present).map(d => d.serial))
+
+    // Detect new connections
+    presentSerials.forEach(serial => {
+      if (!previousDeviceSerials.has(serial) && previousDeviceSerials.size > 0) {
+        addLogEntry(getDeviceName(serial), 'Device connected', 'connect')
+      }
+    })
+
+    // Detect disconnections
+    previousDeviceSerials.forEach(serial => {
+      if (!presentSerials.has(serial)) {
+        addLogEntry(getDeviceName(serial), 'Device disconnected', 'disconnect')
+      }
+    })
+
+    previousDeviceSerials = presentSerials
+  } catch (err) {
+    // API unavailable
+  }
+}
+
+// ── Search/filter devices ──
+function filterDevices(query) {
+  const q = query.toLowerCase().trim()
+  const grid = document.getElementById('grid')
+
+  deviceRegistry.forEach(d => {
+    const el = document.getElementById('dev-' + d.serial)
+    if (!el) return
+    if (!q) {
+      el.classList.remove('search-hidden')
+      return
+    }
+    const nick = d.nick || getDeviceNick(d.serial) || ''
+    const searchable = `${nick} ${d.model} ${d.serial}`.toLowerCase()
+    el.classList.toggle('search-hidden', !searchable.includes(q))
+  })
+
+  // Also hide/show group headers if grouping is on
+  if (isGroupByModel()) {
+    grid.querySelectorAll('.group-header').forEach(h => {
+      const next = h.nextElementSibling
+      // Show header if any device in its group is visible
+      let hasVisible = false
+      let sibling = h.nextElementSibling
+      while (sibling && !sibling.classList.contains('group-header')) {
+        if (sibling.classList.contains('device') && !sibling.classList.contains('search-hidden')) {
+          hasVisible = true
+        }
+        sibling = sibling.nextElementSibling
+      }
+      h.style.display = hasVisible ? '' : 'none'
+    })
+  }
+}
+
 async function syncHealerStatus() {
   try {
     const res = await fetch("/healer/api/status")
@@ -547,6 +1253,7 @@ async function syncHealerStatus() {
         updateCountdownText(el)
       }
     }
+    updateHealCount()
   } catch (err) {
     console.warn("healer status unavailable:", err.message)
   }
@@ -578,13 +1285,44 @@ async function init() {
   const devices = data.devices.filter(d => d.present)
   setStatus(`<span class="count">${devices.length}</span> devices found — claiming...`)
 
+  // Register devices for bulk actions and grouping
+  devices.forEach(d => {
+    const nick = getDeviceNick(d.serial) || d.notes || ''
+    deviceRegistry.push({ serial: d.serial, model: d.model || '', nick })
+  })
+  previousDeviceSerials = new Set(devices.map(d => d.serial))
+
   // Claim all devices in parallel
-  await Promise.all(devices.map(d => startDevice(d.serial, d.model)))
+  await Promise.all(devices.map(d => startDevice(d.serial, d.model, d.notes || '')))
 
   setStatus(`<span class="count">${devices.length}</span> devices streaming`)
 
+  // Show toolbar and apply grouping preference
+  document.getElementById('toolbar').style.display = 'flex'
+  if (isGroupByModel()) {
+    document.getElementById('btn-group').classList.add('active')
+    applyGrouping()
+  }
+
   // Sync Spotify watcher toggle states from healer service
   await syncHealerStatus()
+  updateHealCount()
+
+  // Initialize previous healer state (no events on first poll)
+  try {
+    const hRes = await fetch("/healer/api/status")
+    const hData = await hRes.json()
+    for (const [serial, state] of Object.entries(hData)) {
+      previousHealerState[serial] = { ...state }
+    }
+  } catch (err) { /* ignore */ }
+
+  // Start polling for events (every 10 seconds)
+  setInterval(async () => {
+    await pollHealerForEvents()
+    await pollDeviceChanges()
+    updateHealCount()
+  }, 10000)
 }
 
 // Release devices when leaving the page
@@ -608,7 +1346,13 @@ window.addEventListener("beforeunload", () => {
   })
 })
 
-document.addEventListener('click', () => closePickers())
+document.addEventListener('click', (e) => {
+  closePickers()
+  // Close event log if clicking outside it and outside the toggle button
+  if (logOpen && !e.target.closest('#event-log-panel') && !e.target.closest('#btn-log')) {
+    toggleEventLog()
+  }
+})
 
 init()
 </script>

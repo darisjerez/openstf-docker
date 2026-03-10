@@ -227,6 +227,39 @@ app.get('/api/watch/:serial', (req, res) => {
   res.json(publicState(state))
 })
 
+// POST /api/find/:serial — flash device screen to locate it physically
+app.post('/api/find/:serial', async (req, res) => {
+  const serial = req.params.serial
+  try {
+    // Flash screen: max brightness, show a bright white activity, then restore
+    // Method: toggle screen brightness to max, flash with colored overlay via settings
+    const origBrightness = await adb(serial, ['shell', 'settings', 'get', 'system', 'screen_brightness']).catch(() => '128')
+
+    // Set max brightness
+    await adb(serial, ['shell', 'settings', 'put', 'system', 'screen_brightness_mode', '0'])
+    await adb(serial, ['shell', 'settings', 'put', 'system', 'screen_brightness', '255'])
+
+    // Flash: cycle screen off/on rapidly 3 times
+    for (let i = 0; i < 3; i++) {
+      await adb(serial, ['shell', 'input', 'keyevent', '26']) // power toggle
+      await new Promise(r => setTimeout(r, 400))
+      await adb(serial, ['shell', 'input', 'keyevent', '26']) // power toggle
+      await new Promise(r => setTimeout(r, 400))
+    }
+
+    // Restore brightness after a delay
+    setTimeout(async () => {
+      try {
+        await adb(serial, ['shell', 'settings', 'put', 'system', 'screen_brightness', origBrightness.trim()])
+      } catch (e) { /* best effort */ }
+    }, 5000)
+
+    res.json({ ok: true, serial })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // GET /metrics — Prometheus metrics
 app.get('/metrics', (req, res) => {
   const lines = [
