@@ -14,3 +14,7 @@ scrape_configs:
   - job_name: "device-monitor"
     static_configs:
       - targets: ["127.0.0.1:9107"]
+
+  - job_name: "resource-monitor"
+    static_configs:
+      - targets: ["127.0.0.1:9108"]
