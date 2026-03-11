@@ -5,6 +5,12 @@ services:
     network_mode: host
     volumes:
       - rethinkdb-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
   stf:
@@ -58,6 +64,11 @@ services:
     network_mode: host
     ports:
       - "9105:9105"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9105/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: unless-stopped
 
   spotify-healer:
@@ -66,10 +77,15 @@ services:
     working_dir: /app
     volumes:
       - ./healer:/app
-    command: sh -c "apk add --no-cache android-tools && npm install && node spotify-healer.js"
+    command: sh -c "apk add --no-cache android-tools curl && npm install && node spotify-healer.js"
     network_mode: host
     ports:
       - "9106:9106"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9106/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: unless-stopped
 
   device-monitor:
@@ -78,10 +94,15 @@ services:
     working_dir: /app
     volumes:
       - ./monitor:/app
-    command: sh -c "apk add --no-cache android-tools && npm install && node device-monitor.js"
+    command: sh -c "apk add --no-cache android-tools curl && npm install && node device-monitor.js"
     network_mode: host
     ports:
       - "9107:9107"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9107/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: unless-stopped
 
   prometheus:
@@ -92,6 +113,11 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: unless-stopped
 
   grafana:
