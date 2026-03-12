@@ -139,6 +139,13 @@
       justify-content: flex-end;
       padding: 4px;
       background: #1a1a1a;
+      gap: 4px;
+    }
+
+    .controls-right {
+      display: flex;
+      gap: 4px;
+      margin-left: auto;
     }
 
     .spotify-toggle {
@@ -806,6 +813,14 @@ function openInfoPanel(serial) {
     </div>
     <div class="info-panel-body">
       <div class="info-field">
+        <label>Model</label>
+        <input type="text" value="${escapeAttr(model || 'Unknown')}" readonly style="color:#888;cursor:default">
+      </div>
+      <div class="info-field">
+        <label>Serial</label>
+        <input type="text" value="${escapeAttr(serial)}" readonly style="color:#888;cursor:default">
+      </div>
+      <div class="info-field">
         <label>Label</label>
         <input type="text" id="info-label" value="${escapeAttr(nick)}" placeholder="e.g. Rack 1 - Slot 3" maxlength="40">
       </div>
@@ -977,15 +992,10 @@ function createDeviceEl(serial, model, note) {
   const nickEl = document.createElement("span")
   nickEl.className = "label-nick"
   nickEl.textContent = nick
-  nickEl.title = "Click to edit label"
+  nickEl.title = "Click to open device info"
   nickEl.onclick = (e) => { e.stopPropagation(); openInfoPanel(serial) }
 
-  const modelEl = document.createElement("span")
-  modelEl.className = "label-model"
-  modelEl.textContent = model ? `${model} · ${serial}` : serial
-
   label.appendChild(nickEl)
-  label.appendChild(modelEl)
 
   const status = document.createElement("div")
   status.className = "status connecting"
@@ -994,13 +1004,6 @@ function createDeviceEl(serial, model, note) {
   const controls = document.createElement("div")
   controls.className = "controls"
 
-  const findBtn = document.createElement("button")
-  findBtn.className = "find-btn"
-  findBtn.textContent = "Find"
-  findBtn.title = "Flash device screen to locate it"
-  findBtn.onclick = (e) => { e.stopPropagation(); findDevice(serial, findBtn) }
-  controls.appendChild(findBtn)
-
   const infoBtn = document.createElement("button")
   infoBtn.className = "info-btn"
   infoBtn.innerHTML = "&#x2139;"
@@ -1008,10 +1011,19 @@ function createDeviceEl(serial, model, note) {
   infoBtn.onclick = (e) => { e.stopPropagation(); openInfoPanel(serial) }
   controls.appendChild(infoBtn)
 
+  const controlsRight = document.createElement("span")
+  controlsRight.className = "controls-right"
+
+  const findBtn = document.createElement("button")
+  findBtn.className = "find-btn"
+  findBtn.textContent = "Find"
+  findBtn.title = "Flash device screen to locate it"
+  findBtn.onclick = (e) => { e.stopPropagation(); findDevice(serial, findBtn) }
+  controlsRight.appendChild(findBtn)
+
   const spotifyWrap = document.createElement("span")
   spotifyWrap.style.position = "relative"
   spotifyWrap.style.display = "inline-block"
-  spotifyWrap.style.marginLeft = "4px"
 
   const spotifyBtn = document.createElement("button")
   spotifyBtn.className = "spotify-toggle"
@@ -1019,7 +1031,8 @@ function createDeviceEl(serial, model, note) {
   spotifyBtn.onclick = (e) => { e.stopPropagation(); toggleSpotify(serial, spotifyBtn, spotifyWrap) }
 
   spotifyWrap.appendChild(spotifyBtn)
-  controls.appendChild(spotifyWrap)
+  controlsRight.appendChild(spotifyWrap)
+  controls.appendChild(controlsRight)
 
   container.appendChild(canvas)
   container.appendChild(label)
