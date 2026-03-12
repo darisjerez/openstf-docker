@@ -234,56 +234,47 @@
       border-color: #e94560;
     }
 
-    /* ── Info Panel Modal ── */
-    .info-overlay {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.6);
-      z-index: 50;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
+    /* ── Info Panel Dropup ── */
     .info-panel {
+      position: fixed;
       background: #1a1a2e;
       border: 1px solid #555;
       border-radius: 8px;
-      width: 360px;
-      max-width: 90vw;
-      max-height: 85vh;
-      overflow-y: auto;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+      width: 280px;
+      z-index: 50;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+      overflow: hidden;
     }
 
     .info-panel-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 12px 16px;
+      padding: 10px 12px;
+      background: #16213e;
       border-bottom: 1px solid #333;
     }
 
     .info-panel-header h3 {
       margin: 0;
       color: #eee;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: bold;
     }
 
     .info-panel-header .info-serial {
       color: #666;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: normal;
       display: block;
-      margin-top: 2px;
+      margin-top: 1px;
     }
 
     .info-panel-close {
       background: none;
       border: none;
       color: #aaa;
-      font-size: 20px;
+      font-size: 18px;
       cursor: pointer;
       padding: 0 4px;
       line-height: 1;
@@ -292,17 +283,17 @@
     .info-panel-close:hover { color: #fff; }
 
     .info-panel-body {
-      padding: 16px;
+      padding: 10px 12px;
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 10px;
     }
 
     .info-field label {
       display: block;
       color: #888;
-      font-size: 11px;
-      margin-bottom: 4px;
+      font-size: 10px;
+      margin-bottom: 3px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
@@ -314,8 +305,8 @@
       color: #eee;
       border: 1px solid #444;
       border-radius: 4px;
-      padding: 8px 10px;
-      font-size: 13px;
+      padding: 6px 8px;
+      font-size: 12px;
       font-family: inherit;
       outline: none;
     }
@@ -333,19 +324,19 @@
     }
 
     .info-password-wrap input {
-      padding-right: 36px;
+      padding-right: 32px;
     }
 
     .info-eye-btn {
       position: absolute;
-      right: 6px;
+      right: 4px;
       top: 50%;
       transform: translateY(-50%);
       background: none;
       border: none;
       color: #666;
       cursor: pointer;
-      font-size: 16px;
+      font-size: 14px;
       padding: 2px 4px;
       line-height: 1;
     }
@@ -353,16 +344,15 @@
     .info-eye-btn:hover { color: #aaa; }
 
     @media (max-width: 600px) {
-      .info-overlay {
-        align-items: flex-end;
-      }
-
       .info-panel {
-        width: 100%;
-        max-width: 100%;
-        max-height: 80vh;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: auto;
         border-radius: 12px 12px 0 0;
-        border-bottom: none;
+        max-height: 80vh;
+        overflow-y: auto;
       }
     }
 
@@ -762,46 +752,60 @@ function saveDeviceNick(serial, nick) {
   localStorage.setItem(NICK_KEY, JSON.stringify(nicks))
 }
 
-// ── Device info (account, password, activationDate) ──
-const INFO_KEY = 'stf_device_info'
+// ── Device info API (RethinkDB-backed) ──
+const deviceInfoCache = {} // serial -> { label, account, password, activationDate }
 
-function getAllDeviceInfo() {
-  try { return JSON.parse(localStorage.getItem(INFO_KEY)) || {} } catch { return {} }
+async function fetchAllDeviceInfo() {
+  try {
+    const res = await fetch('/device-info/api/device-info')
+    const data = await res.json()
+    Object.assign(deviceInfoCache, data)
+    return data
+  } catch (err) {
+    console.warn('device-info API unavailable:', err.message)
+    return {}
+  }
 }
 
 function getDeviceInfo(serial) {
-  return getAllDeviceInfo()[serial] || {}
+  return deviceInfoCache[serial] || {}
 }
 
-function saveDeviceInfo(serial, info) {
-  const all = getAllDeviceInfo()
-  // Remove empty fields
-  const cleaned = {}
-  if (info.account) cleaned.account = info.account
-  if (info.password) cleaned.password = info.password
-  if (info.activationDate) cleaned.activationDate = info.activationDate
-  if (Object.keys(cleaned).length > 0) {
-    all[serial] = cleaned
-  } else {
-    delete all[serial]
+async function saveDeviceInfo(serial, info) {
+  deviceInfoCache[serial] = info
+  try {
+    await fetch('/device-info/api/device-info/' + serial, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(info)
+    })
+  } catch (err) {
+    console.error('save device info failed:', err.message)
   }
-  localStorage.setItem(INFO_KEY, JSON.stringify(all))
 }
 
 // ── Info Panel ──
 let currentInfoPanel = null
 
-function openInfoPanel(serial) {
-  closeInfoPanel()
+async function openInfoPanel(serial) {
+  closeInfoPanel(true) // skip save on close when switching panels
 
   const entry = deviceRegistry.find(d => d.serial === serial)
   const model = entry ? entry.model : ''
   const nick = getDeviceNick(serial) || (entry ? entry.nick : '')
-  const info = getDeviceInfo(serial)
 
-  const overlay = document.createElement('div')
-  overlay.className = 'info-overlay'
-  overlay.onclick = (e) => { if (e.target === overlay) closeInfoPanel() }
+  // Fetch latest info from API
+  let info = {}
+  try {
+    const res = await fetch('/device-info/api/device-info/' + serial)
+    info = await res.json()
+    deviceInfoCache[serial] = info
+  } catch (err) {
+    info = getDeviceInfo(serial)
+  }
+
+  // Use API label if available, fall back to nick
+  const label = info.label || nick
 
   const panel = document.createElement('div')
   panel.className = 'info-panel'
@@ -814,7 +818,7 @@ function openInfoPanel(serial) {
     <div class="info-panel-body">
       <div class="info-field">
         <label>Label</label>
-        <input type="text" id="info-label" value="${escapeAttr(nick)}" placeholder="e.g. Rack 1 - Slot 3" maxlength="40">
+        <input type="text" id="info-label" value="${escapeAttr(label)}" placeholder="e.g. Rack 1 - Slot 3" maxlength="40">
       </div>
       <div class="info-field">
         <label>Account</label>
@@ -834,9 +838,28 @@ function openInfoPanel(serial) {
     </div>
   `
 
-  overlay.appendChild(panel)
-  document.body.appendChild(overlay)
-  currentInfoPanel = { overlay, serial }
+  document.body.appendChild(panel)
+
+  // Position above the info button
+  const isMobile = window.innerWidth <= 600
+  if (!isMobile) {
+    const btn = document.querySelector('#dev-' + serial + ' .info-btn')
+    if (btn) {
+      const rect = btn.getBoundingClientRect()
+      const panelH = panel.offsetHeight
+      // Place above button, align left edge
+      let top = rect.top - panelH - 4
+      let left = rect.left
+      // Keep within viewport
+      if (top < 8) top = rect.bottom + 4
+      if (left + 280 > window.innerWidth) left = window.innerWidth - 288
+      if (left < 8) left = 8
+      panel.style.top = top + 'px'
+      panel.style.left = left + 'px'
+    }
+  }
+
+  currentInfoPanel = { panel, serial }
 
   // Auto-save on blur for each field
   const fields = panel.querySelectorAll('input')
@@ -847,6 +870,9 @@ function openInfoPanel(serial) {
       if (e.key === 'Enter') input.blur()
     })
   })
+
+  // Stop clicks inside panel from closing it
+  panel.addEventListener('click', (e) => e.stopPropagation())
 }
 
 function saveInfoFromPanel(serial) {
@@ -856,30 +882,32 @@ function saveInfoFromPanel(serial) {
   const activationInput = document.getElementById('info-activation')
   if (!labelInput) return
 
-  // Save label
-  const newNick = labelInput.value.trim()
-  saveDeviceNick(serial, newNick)
+  const newLabel = labelInput.value.trim()
+
+  // Keep localStorage nicks in sync for backward compat
+  saveDeviceNick(serial, newLabel)
 
   // Update card label
   const nickEl = document.querySelector('#dev-' + serial + ' .label-nick')
-  if (nickEl) nickEl.textContent = newNick
+  if (nickEl) nickEl.textContent = newLabel
 
   // Update registry
   const entry = deviceRegistry.find(d => d.serial === serial)
-  if (entry) entry.nick = newNick
+  if (entry) entry.nick = newLabel
 
-  // Save info fields
+  // Save all fields to API
   saveDeviceInfo(serial, {
+    label: newLabel,
     account: accountInput.value.trim(),
     password: passwordInput.value,
     activationDate: activationInput.value
   })
 }
 
-function closeInfoPanel() {
+function closeInfoPanel(skipSave) {
   if (currentInfoPanel) {
-    saveInfoFromPanel(currentInfoPanel.serial)
-    currentInfoPanel.overlay.remove()
+    if (!skipSave) saveInfoFromPanel(currentInfoPanel.serial)
+    currentInfoPanel.panel.remove()
     currentInfoPanel = null
   }
 }
@@ -1610,6 +1638,9 @@ async function init() {
     applyGrouping()
   }
 
+  // Preload device info from API into cache
+  await fetchAllDeviceInfo()
+
   // Sync Spotify watcher toggle states from healer service
   await syncHealerStatus()
   updateHealCount()
@@ -1654,6 +1685,10 @@ window.addEventListener("beforeunload", () => {
 
 document.addEventListener('click', (e) => {
   closePickers()
+  // Close info panel if clicking outside it
+  if (currentInfoPanel && !e.target.closest('.info-panel') && !e.target.closest('.info-btn') && !e.target.closest('.label-nick')) {
+    closeInfoPanel()
+  }
   // Close event log if clicking outside it and outside the toggle button
   if (logOpen && !e.target.closest('#event-log-panel') && !e.target.closest('#btn-log')) {
     toggleEventLog()
