@@ -762,42 +762,60 @@ function saveDeviceNick(serial, nick) {
   localStorage.setItem(NICK_KEY, JSON.stringify(nicks))
 }
 
-// ── Device info (account, password, activationDate) ──
-const INFO_KEY = 'stf_device_info'
+// ── Device info API (RethinkDB-backed) ──
+const deviceInfoCache = {} // serial -> { label, account, password, activationDate }
 
-function getAllDeviceInfo() {
-  try { return JSON.parse(localStorage.getItem(INFO_KEY)) || {} } catch { return {} }
+async function fetchAllDeviceInfo() {
+  try {
+    const res = await fetch('/device-info/api/device-info')
+    const data = await res.json()
+    Object.assign(deviceInfoCache, data)
+    return data
+  } catch (err) {
+    console.warn('device-info API unavailable:', err.message)
+    return {}
+  }
 }
 
 function getDeviceInfo(serial) {
-  return getAllDeviceInfo()[serial] || {}
+  return deviceInfoCache[serial] || {}
 }
 
-function saveDeviceInfo(serial, info) {
-  const all = getAllDeviceInfo()
-  // Remove empty fields
-  const cleaned = {}
-  if (info.account) cleaned.account = info.account
-  if (info.password) cleaned.password = info.password
-  if (info.activationDate) cleaned.activationDate = info.activationDate
-  if (Object.keys(cleaned).length > 0) {
-    all[serial] = cleaned
-  } else {
-    delete all[serial]
+async function saveDeviceInfo(serial, info) {
+  deviceInfoCache[serial] = info
+  try {
+    await fetch('/device-info/api/device-info/' + serial, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(info)
+    })
+  } catch (err) {
+    console.error('save device info failed:', err.message)
   }
-  localStorage.setItem(INFO_KEY, JSON.stringify(all))
 }
 
 // ── Info Panel ──
 let currentInfoPanel = null
 
-function openInfoPanel(serial) {
-  closeInfoPanel()
+async function openInfoPanel(serial) {
+  closeInfoPanel(true) // skip save on close when switching panels
 
   const entry = deviceRegistry.find(d => d.serial === serial)
   const model = entry ? entry.model : ''
   const nick = getDeviceNick(serial) || (entry ? entry.nick : '')
-  const info = getDeviceInfo(serial)
+
+  // Fetch latest info from API
+  let info = {}
+  try {
+    const res = await fetch('/device-info/api/device-info/' + serial)
+    info = await res.json()
+    deviceInfoCache[serial] = info
+  } catch (err) {
+    info = getDeviceInfo(serial)
+  }
+
+  // Use API label if available, fall back to nick
+  const label = info.label || nick
 
   const overlay = document.createElement('div')
   overlay.className = 'info-overlay'
@@ -814,7 +832,7 @@ function openInfoPanel(serial) {
     <div class="info-panel-body">
       <div class="info-field">
         <label>Label</label>
-        <input type="text" id="info-label" value="${escapeAttr(nick)}" placeholder="e.g. Rack 1 - Slot 3" maxlength="40">
+        <input type="text" id="info-label" value="${escapeAttr(label)}" placeholder="e.g. Rack 1 - Slot 3" maxlength="40">
       </div>
       <div class="info-field">
         <label>Account</label>
@@ -856,29 +874,31 @@ function saveInfoFromPanel(serial) {
   const activationInput = document.getElementById('info-activation')
   if (!labelInput) return
 
-  // Save label
-  const newNick = labelInput.value.trim()
-  saveDeviceNick(serial, newNick)
+  const newLabel = labelInput.value.trim()
+
+  // Keep localStorage nicks in sync for backward compat
+  saveDeviceNick(serial, newLabel)
 
   // Update card label
   const nickEl = document.querySelector('#dev-' + serial + ' .label-nick')
-  if (nickEl) nickEl.textContent = newNick
+  if (nickEl) nickEl.textContent = newLabel
 
   // Update registry
   const entry = deviceRegistry.find(d => d.serial === serial)
-  if (entry) entry.nick = newNick
+  if (entry) entry.nick = newLabel
 
-  // Save info fields
+  // Save all fields to API
   saveDeviceInfo(serial, {
+    label: newLabel,
     account: accountInput.value.trim(),
     password: passwordInput.value,
     activationDate: activationInput.value
   })
 }
 
-function closeInfoPanel() {
+function closeInfoPanel(skipSave) {
   if (currentInfoPanel) {
-    saveInfoFromPanel(currentInfoPanel.serial)
+    if (!skipSave) saveInfoFromPanel(currentInfoPanel.serial)
     currentInfoPanel.overlay.remove()
     currentInfoPanel = null
   }
@@ -1609,6 +1629,9 @@ async function init() {
     document.getElementById('btn-group').classList.add('active')
     applyGrouping()
   }
+
+  // Preload device info from API into cache
+  await fetchAllDeviceInfo()
 
   // Sync Spotify watcher toggle states from healer service
   await syncHealerStatus()
