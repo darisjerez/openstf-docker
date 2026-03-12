@@ -796,7 +796,7 @@ function openInfoPanel(serial) {
 
   const entry = deviceRegistry.find(d => d.serial === serial)
   const model = entry ? entry.model : ''
-  const nick = getDeviceNick(serial)
+  const nick = getDeviceNick(serial) || (entry ? entry.nick : '')
   const info = getDeviceInfo(serial)
 
   const overlay = document.createElement('div')
@@ -812,14 +812,6 @@ function openInfoPanel(serial) {
       <button class="info-panel-close" onclick="closeInfoPanel()">&times;</button>
     </div>
     <div class="info-panel-body">
-      <div class="info-field">
-        <label>Model</label>
-        <input type="text" value="${escapeAttr(model || 'Unknown')}" readonly style="color:#888;cursor:default">
-      </div>
-      <div class="info-field">
-        <label>Serial</label>
-        <input type="text" value="${escapeAttr(serial)}" readonly style="color:#888;cursor:default">
-      </div>
       <div class="info-field">
         <label>Label</label>
         <input type="text" id="info-label" value="${escapeAttr(nick)}" placeholder="e.g. Rack 1 - Slot 3" maxlength="40">
