@@ -38,6 +38,20 @@ cp .env.example .env
 sed -i "s/PUBLIC_IP=.*/PUBLIC_IP=$(hostname -I | awk '{print $1}')/" .env
 ```
 
+Your vendor will provide three license values — add them to `.env`:
+
+```env
+LICENSE_API_URL=https://openstf-license.<vendor>.workers.dev/verify
+LICENSE_KEY=<your unique key>
+LICENSE_PUBLIC_KEY=<base64 public key>
+```
+
+Without these, the OpenSTF services (exporter, healer, monitor,
+device-info) will refuse to start. The cached license token survives
+container restarts via the `license-cache` Docker volume; the services
+keep working for 7 days after the vendor's license API becomes
+unreachable.
+
 Optional: pin a specific image version (defaults to `latest`):
 
 ```bash

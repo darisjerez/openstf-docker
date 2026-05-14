@@ -77,7 +77,15 @@ Edit `.env` and set, e.g.:
 ```env
 PUBLIC_IP=192.168.1.50
 STF_IMAGE_TAG=latest
+LICENSE_API_URL=https://openstf-license.<vendor>.workers.dev/verify
+LICENSE_KEY=<your unique key>
+LICENSE_PUBLIC_KEY=<base64 public key>
 ```
+
+The three `LICENSE_*` values come from your vendor. Without them, the
+OpenSTF services will refuse to start. The cached license token lives in
+the `license-cache` Docker volume and grants a 7-day grace period if the
+license API is unreachable.
 
 Optional: Grafana SMTP, same vars as the Linux install.
 
