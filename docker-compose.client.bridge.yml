@@ -63,6 +63,7 @@ services:
       - LICENSE_API_URL=${LICENSE_API_URL}
       - LICENSE_KEY=${LICENSE_KEY}
       - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY}
+      - LICENSE_INSTALL_ID=${LICENSE_INSTALL_ID:-}
     volumes:
       - license-cache:/var/lib/openstf
     ports:
@@ -84,6 +85,7 @@ services:
       - LICENSE_API_URL=${LICENSE_API_URL}
       - LICENSE_KEY=${LICENSE_KEY}
       - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY}
+      - LICENSE_INSTALL_ID=${LICENSE_INSTALL_ID:-}
     volumes:
       - license-cache:/var/lib/openstf
     extra_hosts:
@@ -108,6 +110,7 @@ services:
       - LICENSE_API_URL=${LICENSE_API_URL}
       - LICENSE_KEY=${LICENSE_KEY}
       - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY}
+      - LICENSE_INSTALL_ID=${LICENSE_INSTALL_ID:-}
     volumes:
       - license-cache:/var/lib/openstf
     extra_hosts:
@@ -130,6 +133,7 @@ services:
       - LICENSE_API_URL=${LICENSE_API_URL}
       - LICENSE_KEY=${LICENSE_KEY}
       - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY}
+      - LICENSE_INSTALL_ID=${LICENSE_INSTALL_ID:-}
     volumes:
       - license-cache:/var/lib/openstf
     ports:
@@ -148,6 +152,7 @@ services:
       - LICENSE_API_URL=${LICENSE_API_URL}
       - LICENSE_KEY=${LICENSE_KEY}
       - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY}
+      - LICENSE_INSTALL_ID=${LICENSE_INSTALL_ID:-}
     volumes:
       - license-cache:/var/lib/openstf
     ports:
