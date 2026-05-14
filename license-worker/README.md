@@ -44,23 +44,48 @@ ADMIN_TOKEN=... \
 Output includes the new `license_key` — share that with the client along
 with `LICENSE_API_URL` and `LICENSE_PUBLIC_KEY`.
 
-## Revoking a license
+## Revoking vs killing
+
+Two flavors, different urgency:
+
+- **`/admin/revoke` — polite.** Marks the license revoked. /verify
+  returns 403 on next refresh. The client's cached token keeps it
+  running for up to 7 days, then the service refuses to start. Use this
+  for non-renewals, late payment, etc.
+
+- **`/admin/kill` — hard.** Sets `kill_immediately` on the license. The
+  next /verify returns 200 with a signed token whose `kill_at = now`.
+  The client verifies the signature, wipes its cache, and exits. Effect
+  lands within one refresh interval (~6h by default) — and a manual
+  `docker compose restart` will trigger it sooner. Use for breach of
+  contract, piracy, etc.
+
+`/admin/unkill` clears both flags (useful if you killed by mistake).
 
 ```bash
+# Polite revoke
 curl -X POST "$WORKER_URL/admin/revoke" \
-  -H "x-admin-token: $ADMIN_TOKEN" \
-  -H "content-type: application/json" \
+  -H "x-admin-token: $ADMIN_TOKEN" -H "content-type: application/json" \
+  -d '{"license_key":"<key>"}'
+
+# Hard kill
+curl -X POST "$WORKER_URL/admin/kill" \
+  -H "x-admin-token: $ADMIN_TOKEN" -H "content-type: application/json" \
+  -d '{"license_key":"<key>"}'
+
+# Restore
+curl -X POST "$WORKER_URL/admin/unkill" \
+  -H "x-admin-token: $ADMIN_TOKEN" -H "content-type: application/json" \
   -d '{"license_key":"<key>"}'
 ```
 
-Note: revocation takes effect on the client's next refresh (every 6h),
-and only fully kicks in after their 7-day cached token expires.
-
 ## Endpoints
 
-| Method | Path             | Auth         | Purpose                       |
-|--------|------------------|--------------|-------------------------------|
-| POST   | /verify          | none         | Client startup license check  |
-| POST   | /admin/create    | X-Admin-Token| Create a new license          |
-| GET    | /admin/get       | X-Admin-Token| Inspect a license             |
-| POST   | /admin/revoke    | X-Admin-Token| Mark a license revoked        |
+| Method | Path             | Auth          | Purpose                          |
+|--------|------------------|---------------|----------------------------------|
+| POST   | /verify          | none          | Client startup license check     |
+| POST   | /admin/create    | X-Admin-Token | Create a new license             |
+| GET    | /admin/get       | X-Admin-Token | Inspect a license                |
+| POST   | /admin/revoke    | X-Admin-Token | Polite revoke (7-day grace)      |
+| POST   | /admin/kill      | X-Admin-Token | Hard kill (forces exit at next refresh) |
+| POST   | /admin/unkill    | X-Admin-Token | Clear revoke + kill flags        |

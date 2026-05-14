@@ -74,6 +74,15 @@ async function checkLicense() {
     if (!p) throw new Error('signature invalid')
     if (p.license_key !== KEY) throw new Error('key mismatch')
     if (p.install_id !== installId()) throw new Error('install_id mismatch')
+
+    // Hard-kill: Worker signaled an immediate shutdown. Wipe the cache so a
+    // restart won't fall back to a still-valid local token, then exit.
+    if (typeof p.kill_at === 'number' && p.kill_at <= now) {
+      try { fs.unlinkSync(CACHE) } catch {}
+      console.error(`[license] kill signal received for ${p.client_name} — shutting down`)
+      process.exit(1)
+    }
+
     fs.mkdirSync(path.dirname(CACHE), { recursive: true })
     fs.writeFileSync(CACHE, token)
     console.log(
