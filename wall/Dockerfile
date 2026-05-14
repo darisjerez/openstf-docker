@@ -1,0 +1,10 @@
+FROM nginx:latest
+
+COPY nginx.conf /etc/nginx/nginx.conf
+COPY grid.html /usr/share/nginx/html/wall/index.html
+COPY portal.html /usr/share/nginx/html/portal.html
+COPY manifest.json /usr/share/nginx/html/manifest.json
+COPY service-worker.js /usr/share/nginx/html/service-worker.js
+COPY icons /usr/share/nginx/html/icons
+
+EXPOSE 80
