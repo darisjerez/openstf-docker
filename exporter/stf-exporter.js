@@ -93,6 +93,12 @@ app.get('/metrics', async (_req, res) => {
   res.send(metrics)
 })
 
-app.listen(9105, () => {
-  console.log('STF exporter running on :9105')
-})
+const { checkLicense, startRefreshLoop } = require('./license-check')
+
+;(async () => {
+  await checkLicense()
+  startRefreshLoop()
+  app.listen(9105, () => {
+    console.log('STF exporter running on :9105')
+  })
+})()

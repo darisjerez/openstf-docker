@@ -60,6 +60,11 @@ services:
     environment:
       - RETHINKDB_HOST=rethinkdb
       - RETHINKDB_PORT=28015
+      - LICENSE_API_URL=${LICENSE_API_URL}
+      - LICENSE_KEY=${LICENSE_KEY}
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY}
+    volumes:
+      - license-cache:/var/lib/openstf
     ports:
       - "9105:9105"
     healthcheck:
@@ -76,6 +81,11 @@ services:
     environment:
       - ADB_HOST=host.docker.internal
       - ADB_PORT=5037
+      - LICENSE_API_URL=${LICENSE_API_URL}
+      - LICENSE_KEY=${LICENSE_KEY}
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY}
+    volumes:
+      - license-cache:/var/lib/openstf
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -95,6 +105,11 @@ services:
     environment:
       - ADB_HOST=host.docker.internal
       - ADB_PORT=5037
+      - LICENSE_API_URL=${LICENSE_API_URL}
+      - LICENSE_KEY=${LICENSE_KEY}
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY}
+    volumes:
+      - license-cache:/var/lib/openstf
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -111,6 +126,12 @@ services:
     container_name: resource-monitor
     command: ["node", "resource-monitor.js"]
     networks: [stfnet]
+    environment:
+      - LICENSE_API_URL=${LICENSE_API_URL}
+      - LICENSE_KEY=${LICENSE_KEY}
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY}
+    volumes:
+      - license-cache:/var/lib/openstf
     ports:
       - "9108:9108"
     restart: unless-stopped
@@ -124,6 +145,11 @@ services:
     environment:
       - RETHINKDB_HOST=rethinkdb
       - RETHINKDB_PORT=28015
+      - LICENSE_API_URL=${LICENSE_API_URL}
+      - LICENSE_KEY=${LICENSE_KEY}
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY}
+    volumes:
+      - license-cache:/var/lib/openstf
     ports:
       - "9109:9109"
     restart: unless-stopped
@@ -175,3 +201,4 @@ networks:
 volumes:
   rethinkdb-data:
   grafana-data:
+  license-cache:

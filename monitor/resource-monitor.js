@@ -111,6 +111,12 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Resource monitor listening on port ${PORT}`);
-});
+const { checkLicense, startRefreshLoop } = require('./license-check');
+
+(async () => {
+  await checkLicense();
+  startRefreshLoop();
+  app.listen(PORT, () => {
+    console.log(`Resource monitor listening on port ${PORT}`);
+  });
+})();

@@ -95,8 +95,13 @@ app.put('/api/device-info/:serial', async (req, res) => {
   }
 })
 
-ensureTable().then(() => {
+const { checkLicense, startRefreshLoop } = require('./license-check')
+
+;(async () => {
+  await checkLicense()
+  startRefreshLoop()
+  await ensureTable()
   app.listen(PORT, () => {
     console.log('Device info service running on :' + PORT)
   })
-})
+})()

@@ -191,10 +191,14 @@ app.get('/metrics', (req, res) => {
   res.send(lines.join('\n') + '\n')
 })
 
-// Start polling immediately, then every POLL_INTERVAL
-pollDevices()
-setInterval(pollDevices, POLL_INTERVAL)
+const { checkLicense, startRefreshLoop } = require('./license-check')
 
-app.listen(PORT, () => {
-  console.log(`Device Monitor listening on :${PORT}`)
-})
+;(async () => {
+  await checkLicense()
+  startRefreshLoop()
+  pollDevices()
+  setInterval(pollDevices, POLL_INTERVAL)
+  app.listen(PORT, () => {
+    console.log(`Device Monitor listening on :${PORT}`)
+  })
+})()

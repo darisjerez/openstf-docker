@@ -51,6 +51,12 @@ services:
     depends_on:
       - rethinkdb
     network_mode: host
+    environment:
+      - LICENSE_API_URL=${LICENSE_API_URL}
+      - LICENSE_KEY=${LICENSE_KEY}
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY}
+    volumes:
+      - license-cache:/var/lib/openstf
     ports:
       - "9105:9105"
     healthcheck:
@@ -64,6 +70,12 @@ services:
     image: ghcr.io/darisjerez/openstf-healer:${STF_IMAGE_TAG:-latest}
     container_name: spotify-healer
     network_mode: host
+    environment:
+      - LICENSE_API_URL=${LICENSE_API_URL}
+      - LICENSE_KEY=${LICENSE_KEY}
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY}
+    volumes:
+      - license-cache:/var/lib/openstf
     ports:
       - "9106:9106"
     healthcheck:
@@ -78,6 +90,12 @@ services:
     container_name: device-monitor
     command: ["node", "device-monitor.js"]
     network_mode: host
+    environment:
+      - LICENSE_API_URL=${LICENSE_API_URL}
+      - LICENSE_KEY=${LICENSE_KEY}
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY}
+    volumes:
+      - license-cache:/var/lib/openstf
     ports:
       - "9107:9107"
     healthcheck:
@@ -92,6 +110,12 @@ services:
     container_name: resource-monitor
     command: ["node", "resource-monitor.js"]
     network_mode: host
+    environment:
+      - LICENSE_API_URL=${LICENSE_API_URL}
+      - LICENSE_KEY=${LICENSE_KEY}
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY}
+    volumes:
+      - license-cache:/var/lib/openstf
     ports:
       - "9108:9108"
     restart: unless-stopped
@@ -102,6 +126,12 @@ services:
     depends_on:
       - rethinkdb
     network_mode: host
+    environment:
+      - LICENSE_API_URL=${LICENSE_API_URL}
+      - LICENSE_KEY=${LICENSE_KEY}
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY}
+    volumes:
+      - license-cache:/var/lib/openstf
     ports:
       - "9109:9109"
     restart: unless-stopped
@@ -148,3 +178,4 @@ services:
 volumes:
   rethinkdb-data:
   grafana-data:
+  license-cache:

@@ -1,0 +1,14 @@
+name = "openstf-license"
+main = "src/worker.ts"
+compatibility_date = "2024-09-01"
+
+# KV namespace for license records — create with:
+#   npx wrangler kv namespace create LICENSES
+# then paste the id below.
+[[kv_namespaces]]
+binding = "LICENSES"
+id = "REPLACE_WITH_KV_ID"
+
+# Secrets (set with `npx wrangler secret put <NAME>`):
+#   SIGNING_KEY_B64  — Ed25519 PKCS8 private key (base64)
+#   ADMIN_TOKEN      — bearer used to call /admin/*

@@ -315,6 +315,12 @@ app.get('/metrics', (req, res) => {
   res.send(lines.join('\n') + '\n')
 })
 
-app.listen(PORT, () => {
-  console.log(`Spotify Healer listening on :${PORT}`)
-})
+const { checkLicense, startRefreshLoop } = require('./license-check')
+
+;(async () => {
+  await checkLicense()
+  startRefreshLoop()
+  app.listen(PORT, () => {
+    console.log(`Spotify Healer listening on :${PORT}`)
+  })
+})()

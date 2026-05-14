@@ -1,0 +1,15 @@
+.git
+.github
+**/node_modules
+**/npm-debug.log
+**/.dockerignore
+**/.DS_Store
+docker-compose*.yml
+*.md
+CLIENT_INSTALL*.md
+roadmap.md
+license-worker
+grafana/dashboards
+scripts
+envs
+prometheus*.yml
