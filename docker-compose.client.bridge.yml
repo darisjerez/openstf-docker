@@ -1,0 +1,177 @@
+services:
+  rethinkdb:
+    image: rethinkdb:2.4
+    container_name: stf-rethinkdb
+    networks: [stfnet]
+    volumes:
+      - rethinkdb-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  stf:
+    image: devicefarmer/stf:latest
+    container_name: stf
+    depends_on:
+      - rethinkdb
+    networks: [stfnet]
+    ports:
+      - "7100:7100"   # web UI
+      - "7110:7110"   # websocket
+      - "7400-7500:7400-7500"  # provider port range (device workers)
+    environment:
+      - RETHINKDB_PORT_28015_TCP=tcp://rethinkdb:28015
+      - STF_LOCAL_GROUP_TIMEOUT=2000000
+    command: >
+      stf local
+      --public-ip ${PUBLIC_IP}
+      --adb-host host.docker.internal
+      --adb-port 5037
+      --allow-remote
+      --group-timeout 2000000
+      --no-screen-reset
+      --no-cleanup
+      --lock-rotation true
+      --mute-master always
+      --provider-min-port 7400
+      --provider-max-port 7500
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  nginx:
+    image: ghcr.io/darisjerez/openstf-wall-bridge:${STF_IMAGE_TAG:-latest}
+    container_name: stf-nginx
+    networks: [stfnet]
+    ports:
+      - "80:80"
+    restart: unless-stopped
+
+  stf-exporter:
+    image: ghcr.io/darisjerez/openstf-exporter:${STF_IMAGE_TAG:-latest}
+    container_name: stf-exporter
+    depends_on:
+      - rethinkdb
+    networks: [stfnet]
+    environment:
+      - RETHINKDB_HOST=rethinkdb
+      - RETHINKDB_PORT=28015
+    ports:
+      - "9105:9105"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9105/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  spotify-healer:
+    image: ghcr.io/darisjerez/openstf-healer:${STF_IMAGE_TAG:-latest}
+    container_name: spotify-healer
+    networks: [stfnet]
+    environment:
+      - ADB_HOST=host.docker.internal
+      - ADB_PORT=5037
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "9106:9106"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9106/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  device-monitor:
+    image: ghcr.io/darisjerez/openstf-monitor:${STF_IMAGE_TAG:-latest}
+    container_name: device-monitor
+    command: ["node", "device-monitor.js"]
+    networks: [stfnet]
+    environment:
+      - ADB_HOST=host.docker.internal
+      - ADB_PORT=5037
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "9107:9107"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9107/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  resource-monitor:
+    image: ghcr.io/darisjerez/openstf-monitor:${STF_IMAGE_TAG:-latest}
+    container_name: resource-monitor
+    command: ["node", "resource-monitor.js"]
+    networks: [stfnet]
+    ports:
+      - "9108:9108"
+    restart: unless-stopped
+
+  device-info:
+    image: ghcr.io/darisjerez/openstf-device-info:${STF_IMAGE_TAG:-latest}
+    container_name: device-info
+    depends_on:
+      - rethinkdb
+    networks: [stfnet]
+    environment:
+      - RETHINKDB_HOST=rethinkdb
+      - RETHINKDB_PORT=28015
+    ports:
+      - "9109:9109"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    networks: [stfnet]
+    volumes:
+      - ./prometheus-bridge.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    networks: [stfnet]
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_SMTP_ENABLED=${GF_SMTP_ENABLED:-false}
+      - GF_SMTP_HOST=${GF_SMTP_HOST:-}
+      - GF_SMTP_USER=${GF_SMTP_USER:-}
+      - GF_SMTP_PASSWORD=${GF_SMTP_PASSWORD:-}
+      - GF_SMTP_FROM_ADDRESS=${GF_SMTP_FROM_ADDRESS:-}
+      - GF_SMTP_FROM_NAME=${GF_SMTP_FROM_NAME:-STF Monitor}
+      - GF_SMTP_SKIP_VERIFY=false
+      - GF_SERVER_ROOT_URL=http://%(domain)s/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    restart: unless-stopped
+
+networks:
+  stfnet:
+    driver: bridge
+
+volumes:
+  rethinkdb-data:
+  grafana-data:

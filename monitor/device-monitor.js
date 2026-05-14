@@ -4,6 +4,10 @@ const app = express()
 const PORT = 9107
 const POLL_INTERVAL = 60000 // 60s
 const ADB_TIMEOUT = 10000
+const ADB_GLOBAL_ARGS = [
+  ...(process.env.ADB_HOST ? ['-H', process.env.ADB_HOST] : []),
+  ...(process.env.ADB_PORT ? ['-P', process.env.ADB_PORT] : []),
+]
 const RECONNECT_AFTER = 3 // consecutive offline polls before auto-reconnect
 const MAX_RECONNECT_ATTEMPTS = 3 // max reconnect attempts per offline streak
 
@@ -15,7 +19,7 @@ let pollErrors = 0
 
 function adb(serial, args) {
   return new Promise((resolve, reject) => {
-    execFile('adb', ['-s', serial, ...args], { timeout: ADB_TIMEOUT }, (err, stdout, stderr) => {
+    execFile('adb', [...ADB_GLOBAL_ARGS, '-s', serial, ...args], { timeout: ADB_TIMEOUT }, (err, stdout, stderr) => {
       if (err) return reject(err)
       resolve(stdout.trim())
     })
@@ -24,7 +28,7 @@ function adb(serial, args) {
 
 function adbNoSerial(args) {
   return new Promise((resolve, reject) => {
-    execFile('adb', args, { timeout: ADB_TIMEOUT }, (err, stdout) => {
+    execFile('adb', [...ADB_GLOBAL_ARGS, ...args], { timeout: ADB_TIMEOUT }, (err, stdout) => {
       if (err) return reject(err)
       resolve(stdout.trim())
     })
@@ -33,7 +37,7 @@ function adbNoSerial(args) {
 
 function adbDevices() {
   return new Promise((resolve, reject) => {
-    execFile('adb', ['devices'], { timeout: ADB_TIMEOUT }, (err, stdout) => {
+    execFile('adb', [...ADB_GLOBAL_ARGS, 'devices'], { timeout: ADB_TIMEOUT }, (err, stdout) => {
       if (err) return reject(err)
       const serials = []
       for (const line of stdout.split('\n')) {

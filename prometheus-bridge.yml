@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  - job_name: "stf"
+    static_configs:
+      - targets: ["stf-exporter:9105"]
+
+  - job_name: "spotify-healer"
+    static_configs:
+      - targets: ["spotify-healer:9106"]
+
+  - job_name: "device-monitor"
+    static_configs:
+      - targets: ["device-monitor:9107"]
+
+  - job_name: "resource-monitor"
+    static_configs:
+      - targets: ["resource-monitor:9108"]

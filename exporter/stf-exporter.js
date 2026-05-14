@@ -10,8 +10,8 @@ async function collectMetrics() {
 
   try {
     conn = await r.connect({
-      host: '127.0.0.1',
-      port: 28015,
+      host: process.env.RETHINKDB_HOST || '127.0.0.1',
+      port: parseInt(process.env.RETHINKDB_PORT || '28015', 10),
       db: 'stf',
       timeout: 10
     })

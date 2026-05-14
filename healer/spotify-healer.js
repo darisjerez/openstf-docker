@@ -5,13 +5,17 @@ const PORT = 9106
 const HEAL_INTERVAL_MIN = 240000  // 4 minutes
 const HEAL_INTERVAL_MAX = 360000  // 6 minutes
 const ADB_TIMEOUT = 10000
+const ADB_GLOBAL_ARGS = [
+  ...(process.env.ADB_HOST ? ['-H', process.env.ADB_HOST] : []),
+  ...(process.env.ADB_PORT ? ['-P', process.env.ADB_PORT] : []),
+]
 
 // State per device: { serial: { watching, spotifyRunning, spotifyPlaying, healCount, healsLaunched, healsPlaySent, lastHealAction, lastError, _timer, _healing } }
 const devices = {}
 
 function adb(serial, args) {
   return new Promise((resolve, reject) => {
-    execFile('adb', ['-s', serial, ...args], { timeout: ADB_TIMEOUT }, (err, stdout, stderr) => {
+    execFile('adb', [...ADB_GLOBAL_ARGS, '-s', serial, ...args], { timeout: ADB_TIMEOUT }, (err, stdout, stderr) => {
       if (err) return reject(err)
       resolve(stdout.trim())
     })

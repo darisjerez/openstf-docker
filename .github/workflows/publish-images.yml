@@ -27,14 +27,22 @@ jobs:
         include:
           - name: openstf-exporter
             context: exporter
+            dockerfile: Dockerfile
           - name: openstf-healer
             context: healer
+            dockerfile: Dockerfile
           - name: openstf-monitor
             context: monitor
+            dockerfile: Dockerfile
           - name: openstf-device-info
             context: device-info
+            dockerfile: Dockerfile
           - name: openstf-wall
             context: wall
+            dockerfile: Dockerfile
+          - name: openstf-wall-bridge
+            context: wall
+            dockerfile: Dockerfile.bridge
     steps:
       - uses: actions/checkout@v4
 
@@ -64,6 +72,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.context }}
+          file: ${{ matrix.context }}/${{ matrix.dockerfile }}
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha,scope=${{ matrix.name }}

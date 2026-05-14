@@ -9,7 +9,11 @@ const app = express()
 app.use(express.json())
 
 async function getConn() {
-  return r.connect({ host: '127.0.0.1', port: 28015, db: DB })
+  return r.connect({
+    host: process.env.RETHINKDB_HOST || '127.0.0.1',
+    port: parseInt(process.env.RETHINKDB_PORT || '28015', 10),
+    db: DB,
+  })
 }
 
 async function ensureTable() {
