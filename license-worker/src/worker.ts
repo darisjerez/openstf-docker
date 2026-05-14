@@ -8,6 +8,7 @@ interface License {
   client_name: string
   expires_at: number
   revoked: boolean
+  kill_immediately?: boolean
   install_ids: string[]
   max_installs: number
   notes?: string
@@ -32,6 +33,8 @@ export default {
     if (url.pathname === '/admin/create' && req.method === 'POST') return adminCreate(req, env)
     if (url.pathname === '/admin/get' && req.method === 'GET') return adminGet(req, env)
     if (url.pathname === '/admin/revoke' && req.method === 'POST') return adminRevoke(req, env)
+    if (url.pathname === '/admin/kill' && req.method === 'POST') return adminKill(req, env)
+    if (url.pathname === '/admin/unkill' && req.method === 'POST') return adminUnkill(req, env)
     return new Response('Not found', { status: 404 })
   },
 }
@@ -45,6 +48,23 @@ async function verify(req: Request, env: Env): Promise<Response> {
   const lic = JSON.parse(raw) as License
 
   const now = Math.floor(Date.now() / 1000)
+
+  // Hard kill: issue a signed shutdown token. The client verifies the
+  // signature, sees kill_at <= now, deletes its cache, and exits.
+  if (lic.kill_immediately) {
+    const payload = {
+      license_key: body.license_key,
+      install_id: body.install_id,
+      client_name: lic.client_name,
+      expires_at: lic.expires_at,
+      valid_until: now,
+      issued_at: now,
+      kill_at: now,
+    }
+    const token = await sign(payload, env.SIGNING_KEY_B64)
+    return json({ token, payload })
+  }
+
   if (lic.revoked) return json({ error: 'revoked' }, 403)
   if (now > lic.expires_at) return json({ error: 'expired' }, 403)
 
@@ -103,6 +123,32 @@ async function adminRevoke(req: Request, env: Env): Promise<Response> {
   if (!raw) return json({ error: 'not_found' }, 404)
   const lic = JSON.parse(raw) as License
   lic.revoked = true
+  await env.LICENSES.put(body.license_key, JSON.stringify(lic))
+  return json({ ok: true, license_key: body.license_key })
+}
+
+async function adminKill(req: Request, env: Env): Promise<Response> {
+  if (!isAdmin(req, env)) return json({ error: 'auth' }, 401)
+  const body = (await req.json()) as { license_key: string }
+  if (!body.license_key) return json({ error: 'missing' }, 400)
+  const raw = await env.LICENSES.get(body.license_key)
+  if (!raw) return json({ error: 'not_found' }, 404)
+  const lic = JSON.parse(raw) as License
+  lic.kill_immediately = true
+  lic.revoked = true
+  await env.LICENSES.put(body.license_key, JSON.stringify(lic))
+  return json({ ok: true, license_key: body.license_key, killed: true })
+}
+
+async function adminUnkill(req: Request, env: Env): Promise<Response> {
+  if (!isAdmin(req, env)) return json({ error: 'auth' }, 401)
+  const body = (await req.json()) as { license_key: string }
+  if (!body.license_key) return json({ error: 'missing' }, 400)
+  const raw = await env.LICENSES.get(body.license_key)
+  if (!raw) return json({ error: 'not_found' }, 404)
+  const lic = JSON.parse(raw) as License
+  lic.kill_immediately = false
+  lic.revoked = false
   await env.LICENSES.put(body.license_key, JSON.stringify(lic))
   return json({ ok: true, license_key: body.license_key })
 }
